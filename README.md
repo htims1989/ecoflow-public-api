@@ -1,9 +1,14 @@
 # EcoFlow Stream (Public API) — Home Assistant Integration
 
-A lightweight, independent Home Assistant integration for **EcoFlow Stream** devices
-(Stream Ultra / Ultra X inverters and the EcoFlow **Smart Meter**), built on EcoFlow's
+A lightweight, independent Home Assistant integration for the **EcoFlow Stream Ultra X**
+inverter and the EcoFlow **Smart Meter**, built on EcoFlow's
 **official public developer API** (IoT Open) — HMAC-signed HTTP plus the EcoFlow MQTT
 broker for near-real-time push telemetry.
+
+> **Supported devices:** this integration has only been developed and verified against
+> the **Stream Ultra X** inverter and the **Smart Meter**. Other Stream models
+> (Stream, Stream Max, Stream Ultra) are **not officially supported** — see
+> [Supported devices](#supported-devices) below.
 
 > This is a clean-room integration that uses only EcoFlow's documented public API.
 > It is **not** derived from any other integration's code. It was inspired by the
@@ -13,7 +18,7 @@ broker for near-real-time push telemetry.
 ## Features
 
 - **Near-real-time power flow** via MQTT push — solar, battery, grid, and home load.
-- **Per-string PV power** (PV1–PV4) for Stream inverters.
+- **Per-string PV power** (PV1–PV4) for the Stream Ultra X inverter.
 - **Battery detail** — state of charge, health, cycles, temperature, time-to-full/empty.
 - **Daily energy sensors** (`*_today`) for solar, consumption, grid import/export, and
   battery charge/discharge — ready to drop into the Home Assistant **Energy Dashboard**.
@@ -30,6 +35,28 @@ broker for near-real-time push telemetry.
 - An EcoFlow **Developer** account with an **Access Key** and **Secret Key**
   (create these at <https://developer.ecoflow.com/>).
 - One or more supported devices registered to that account.
+
+## Supported devices
+
+This integration is developed and tested **only** against:
+
+| Device | Live power sensors | Daily energy (`*_today`) sensors |
+| --- | :---: | :---: |
+| **Stream Ultra X** (inverter) | ✅ verified | ✅ verified |
+| **Smart Meter** | ✅ verified | ✅ (derived from live power) |
+
+**Other Stream models (Stream, Stream Max, Stream Ultra) are not officially
+supported.** They will still be *discovered* and set up without errors, but:
+
+- Live power sensors may or may not populate, depending on whether the model
+  publishes the same MQTT field names as the Ultra X (unverified).
+- The **daily energy sensors will not work** — the historical-energy API codes are
+  specific to the Stream Ultra X (`BK621`), so those sensors are skipped on other
+  models.
+
+Nothing should crash on an unsupported model — it simply degrades: unsupported sensors
+stay unavailable or are not created. If you have another Stream model and want to
+help add support, please open an issue with a diagnostic dump.
 
 ## Installation
 
@@ -82,6 +109,33 @@ following HACS frontend cards:
 
 Copy its contents into a new dashboard via **Edit → Raw configuration editor**, then
 adjust the entity IDs to match your device serial numbers.
+
+### Overview
+
+Live power flow between solar, battery, grid, and home, plus "right now" and "today"
+summary tiles.
+
+![Overview dashboard](docs/images/dashboard-overview.png)
+
+### Solar
+
+Solar power today, per-string (PV1–PV4) output gauges, and a 7-day energy history.
+
+![Solar dashboard](docs/images/dashboard-solar.png)
+
+### Battery
+
+State of charge, health, cycles, temperature, full-energy capacity, and
+charge/discharge time estimates.
+
+![Battery dashboard](docs/images/dashboard-battery.png)
+
+### Grid
+
+Whole-house grid power, per-phase power/voltage/current, and system health
+(inverter temperature, frequency, Wi-Fi signal).
+
+![Grid dashboard](docs/images/dashboard-grid.png)
 
 ## Notes & caveats
 
