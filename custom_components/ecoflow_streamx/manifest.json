@@ -1,0 +1,12 @@
+{
+  "domain": "ecoflow_streamx",
+  "name": "EcoFlow Stream (Public API)",
+  "codeowners": [],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/htims1989/ecoflow-public-api",
+  "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/htims1989/ecoflow-public-api/issues",
+  "requirements": ["paho-mqtt>=1.6.1"],
+  "version": "0.1.0"
+}

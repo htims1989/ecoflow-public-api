@@ -1,0 +1,408 @@
+# =============================================================================
+# EcoFlow Stream — Solar Dashboard
+# =============================================================================
+# HOW TO USE
+#   1. Install these three cards from HACS → Frontend:
+#        - Power Flow Card Plus   (custom:power-flow-card-plus)
+#        - ApexCharts Card        (custom:apexcharts-card)
+#        - Mushroom               (custom:mushroom-*)
+#   2. Settings → Dashboards → Add dashboard → (give it a name) → Open it
+#   3. Top-right pencil (Edit) → three-dots → "Raw configuration editor"
+#   4. Delete what's there, paste ALL of this file, Save.
+#
+# IMPORTANT — REPLACE THE PLACEHOLDER ENTITY IDs
+#   This template uses placeholder entity prefixes. Find-and-replace them with
+#   your own before use (Developer Tools → States shows your real entity IDs):
+#     stream_ultra_x_XXXX      -> your Stream inverter, e.g. stream_ultra_x_1234
+#     ecoflow_smart_meter_YYYY -> your Smart Meter,   e.g. ecoflow_bk21ab2c3d4e
+#
+# NOTE ON GRID SIGN
+#   The meter import/export energy sign is not yet verified. If the flow arrows
+#   or the import/export figures look reversed, flip IMPORT_IS_POSITIVE in
+#   custom_components/ecoflow_streamx/meter_energy.py and redeploy.
+# =============================================================================
+
+title: Solar
+views:
+  # ===========================================================================
+  # VIEW 1 — Overview
+  # ===========================================================================
+  - title: Overview
+    path: overview
+    icon: mdi:solar-power-variant
+    type: sections
+    max_columns: 3
+    sections:
+      # ----- Live power flow -----
+      - type: grid
+        cards:
+          - type: custom:power-flow-card-plus
+            title: Live Power Flow
+            clickable_entities: true
+            display_zero_lines:
+              mode: show
+            use_new_flow_rate_model: true
+            watt_threshold: 20
+            entities:
+              grid:
+                entity: sensor.ecoflow_smart_meter_YYYY_grid_power
+                name: Grid
+                # If arrows point the wrong way, add: invert_state: true
+              solar:
+                entity: sensor.stream_ultra_x_XXXX_solar_power
+                name: Solar
+                icon: mdi:solar-power
+              battery:
+                entity: sensor.stream_ultra_x_XXXX_battery_power
+                state_of_charge: sensor.stream_ultra_x_XXXX_battery_level_precise
+                name: Battery
+                # This device reports discharge as NEGATIVE watts, but the card
+                # expects positive = discharging. Invert so the battery→home
+                # flow animates correctly.
+                invert_state: true
+              home:
+                entity: sensor.stream_ultra_x_XXXX_load_power
+                name: Home
+                icon: mdi:home-lightning-bolt
+
+      # ----- Key stats (Mushroom tiles) -----
+      - type: grid
+        cards:
+          - type: heading
+            heading: Right now
+            heading_style: title
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX_solar_power
+            name: Solar
+            icon: mdi:solar-power
+            color: amber
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX_load_power
+            name: Home Load
+            icon: mdi:home-lightning-bolt
+            color: blue
+          - type: tile
+            entity: sensor.ecoflow_smart_meter_YYYY_grid_power
+            name: Grid
+            icon: mdi:transmission-tower
+            color: purple
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX_battery_power
+            name: Battery
+            icon: mdi:home-battery
+            color: green
+          - type: custom:mushroom-template-card
+            primary: Battery
+            secondary: "{{ states('sensor.stream_ultra_x_XXXX_battery_level_precise') }} %"
+            icon: >-
+              {% set s = states('sensor.stream_ultra_x_XXXX_battery_level_precise') | float(0) %}
+              {% if s >= 90 %} mdi:battery
+              {% elif s >= 60 %} mdi:battery-70
+              {% elif s >= 30 %} mdi:battery-40
+              {% elif s >= 10 %} mdi:battery-20
+              {% else %} mdi:battery-alert {% endif %}
+            icon_color: >-
+              {% set s = states('sensor.stream_ultra_x_XXXX_battery_level_precise') | float(0) %}
+              {% if s >= 50 %} green {% elif s >= 20 %} orange {% else %} red {% endif %}
+            badge_icon: >-
+              {% set p = states('sensor.stream_ultra_x_XXXX_battery_power') | float(0) %}
+              {% if p > 20 %} mdi:arrow-down-bold {% elif p < -20 %} mdi:arrow-up-bold {% endif %}
+            entity: sensor.stream_ultra_x_XXXX_battery_level_precise
+
+      # ----- Today's totals -----
+      - type: grid
+        cards:
+          - type: heading
+            heading: Today
+            heading_style: title
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX_solar_energy_today
+            name: Solar Produced
+            icon: mdi:solar-power
+            color: amber
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX_consumption_today
+            name: Consumed
+            icon: mdi:home-lightning-bolt
+            color: blue
+          - type: tile
+            entity: sensor.ecoflow_smart_meter_YYYY_grid_import_energy
+            name: Grid Import
+            icon: mdi:transmission-tower-import
+            color: red
+          - type: tile
+            entity: sensor.ecoflow_smart_meter_YYYY_grid_export_energy
+            name: Grid Export
+            icon: mdi:transmission-tower-export
+            color: green
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX_battery_charge_today
+            name: Battery Charged
+            icon: mdi:battery-plus-variant
+            color: green
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX_battery_discharge_today
+            name: Battery Discharged
+            icon: mdi:battery-minus-variant
+            color: orange
+
+  # ===========================================================================
+  # VIEW 2 — Solar detail
+  # ===========================================================================
+  - title: Solar
+    path: solar
+    icon: mdi:solar-power
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Solar Production
+            heading_style: title
+          - type: custom:apexcharts-card
+            header:
+              show: true
+              title: Solar Power (today)
+              show_states: true
+              colorize_states: true
+            graph_span: 24h
+            span:
+              start: day
+            apex_config:
+              chart:
+                height: 260
+              stroke:
+                width: 2
+            series:
+              - entity: sensor.stream_ultra_x_XXXX_solar_power
+                name: Solar
+                type: area
+                color: "#f5a623"
+                stroke_width: 2
+                group_by:
+                  func: avg
+                  duration: 5min
+
+          - type: custom:apexcharts-card
+            header:
+              show: true
+              title: Solar Energy (last 7 days)
+            graph_span: 7d
+            span:
+              start: day
+              offset: "-6d"
+            apex_config:
+              chart:
+                height: 220
+            series:
+              - entity: sensor.stream_ultra_x_XXXX_solar_energy_today
+                name: Daily Solar
+                type: column
+                color: "#f5a623"
+                group_by:
+                  func: max
+                  duration: 1d
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Per-string (PV)
+            heading_style: title
+          - type: horizontal-stack
+            cards:
+              - type: gauge
+                entity: sensor.stream_ultra_x_XXXX_solar_power_pv1
+                name: PV1
+                needle: true
+                min: 0
+                max: 600
+                severity:
+                  green: 200
+                  yellow: 50
+                  red: 0
+              - type: gauge
+                entity: sensor.stream_ultra_x_XXXX_solar_power_pv2
+                name: PV2
+                needle: true
+                min: 0
+                max: 600
+                severity:
+                  green: 200
+                  yellow: 50
+                  red: 0
+          - type: horizontal-stack
+            cards:
+              - type: gauge
+                entity: sensor.stream_ultra_x_XXXX_solar_power_pv3
+                name: PV3
+                needle: true
+                min: 0
+                max: 600
+                severity:
+                  green: 200
+                  yellow: 50
+                  red: 0
+              - type: gauge
+                entity: sensor.stream_ultra_x_XXXX_solar_power_pv4
+                name: PV4
+                needle: true
+                min: 0
+                max: 600
+                severity:
+                  green: 200
+                  yellow: 50
+                  red: 0
+
+  # ===========================================================================
+  # VIEW 3 — Battery
+  # ===========================================================================
+  - title: Battery
+    path: battery
+    icon: mdi:home-battery
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Battery State
+            heading_style: title
+          - type: gauge
+            entity: sensor.stream_ultra_x_XXXX_battery_level_precise
+            name: State of Charge
+            min: 0
+            max: 100
+            needle: true
+            severity:
+              green: 50
+              yellow: 20
+              red: 0
+          - type: custom:apexcharts-card
+            header:
+              show: true
+              title: State of Charge (today)
+            graph_span: 24h
+            span:
+              start: day
+            apex_config:
+              chart:
+                height: 240
+              yaxis:
+                min: 0
+                max: 100
+            series:
+              - entity: sensor.stream_ultra_x_XXXX_battery_level_precise
+                name: SoC
+                type: area
+                color: "#4caf50"
+                group_by:
+                  func: avg
+                  duration: 5min
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Battery Health & Info
+            heading_style: title
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX_battery_health
+            name: Health
+            icon: mdi:heart-pulse
+            color: pink
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX_battery_cycles
+            name: Cycles
+            icon: mdi:battery-sync
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX_battery_full_energy
+            name: Full Energy
+            icon: mdi:battery-high
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX_temperature
+            name: Battery Temp
+            icon: mdi:thermometer
+            color: orange
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX_charge_remaining_time_2
+            name: Charge Time Left
+            icon: mdi:battery-clock
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX_discharge_remaining_time_2
+            name: Discharge Time Left
+            icon: mdi:battery-clock-outline
+
+  # ===========================================================================
+  # VIEW 4 — Grid & System
+  # ===========================================================================
+  - title: Grid
+    path: grid
+    icon: mdi:transmission-tower
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Grid Power (live)
+            heading_style: title
+          - type: custom:apexcharts-card
+            header:
+              show: true
+              title: Whole-house Grid Power (today)
+              show_states: true
+            graph_span: 24h
+            span:
+              start: day
+            apex_config:
+              chart:
+                height: 240
+            series:
+              - entity: sensor.ecoflow_smart_meter_YYYY_grid_power
+                name: Grid
+                type: area
+                color: "#9c27b0"
+                group_by:
+                  func: avg
+                  duration: 5min
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Per-phase
+            heading_style: title
+          - type: entities
+            entities:
+              - entity: sensor.ecoflow_smart_meter_YYYY_grid_power_l1
+                name: Power L1
+              - entity: sensor.ecoflow_smart_meter_YYYY_grid_power_l2
+                name: Power L2
+              - entity: sensor.ecoflow_smart_meter_YYYY_grid_power_l3
+                name: Power L3
+              - entity: sensor.ecoflow_smart_meter_YYYY_grid_voltage_l1
+                name: Voltage L1
+              - entity: sensor.ecoflow_smart_meter_YYYY_grid_current_l1
+                name: Current L1
+              - entity: sensor.ecoflow_smart_meter_YYYY_grid_power_factor
+                name: Power Factor
+              - entity: sensor.ecoflow_smart_meter_YYYY_grid_connection_status
+                name: Connection
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: System Health
+            heading_style: title
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX_temperature
+            name: Inverter Temp
+            icon: mdi:thermometer
+            color: orange
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX_grid_frequency
+            name: Frequency
+            icon: mdi:sine-wave
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX_wi_fi_signal
+            name: Wi-Fi Signal
+            icon: mdi:wifi

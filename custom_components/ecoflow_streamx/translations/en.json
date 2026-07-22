@@ -1,0 +1,25 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "EcoFlow Stream (Public API)",
+        "description": "Enter the AccessKey and SecretKey from the EcoFlow Developer portal (developer.ecoflow.com).",
+        "data": {
+          "access_key": "Access Key",
+          "secret_key": "Secret Key",
+          "group": "Group name",
+          "api_host": "Region"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid AccessKey or SecretKey.",
+      "cannot_connect": "Failed to connect to the EcoFlow API.",
+      "no_devices": "No devices were found for this account.",
+      "unknown": "An unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "This account and group are already configured."
+    }
+  }
+}
