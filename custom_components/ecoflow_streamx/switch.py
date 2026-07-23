@@ -76,10 +76,15 @@ class StreamRelaySwitch(StreamControlEntity, SwitchEntity):
 
 
 class StreamFeedGridSwitch(StreamControlEntity, SwitchEntity):
-    """Grid feed-in control. ``feedGridMode``: 1 = off, 2 = on."""
+    """Feed-in Control, mirroring the EcoFlow app toggle of the same name.
 
-    _attr_name = "Grid Feed-in"
-    _attr_icon = "mdi:transmission-tower-import"
+    ``feedGridMode``: 2 = Feed-in Control ON (system powers home loads but is
+    prevented from exporting to the grid), 1 = OFF (export allowed). Works with
+    the Smart Meter to discharge only what the house is consuming.
+    """
+
+    _attr_name = "Feed-in Control"
+    _attr_icon = "mdi:transmission-tower-off"
 
     @callback
     def _handle_update(self) -> None:

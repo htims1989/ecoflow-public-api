@@ -21,7 +21,8 @@ broker for near-real-time push telemetry.
 - **Per-string PV power** (PV1–PV4) for the Stream Ultra X inverter.
 - **AC output** — inverter AC output power, per-socket (AC1/AC2) output power, and
   AC1/AC2 on/off status plus an off-grid indicator.
-- **Device control** — switch AC1/AC2 outputs and grid feed-in on/off, set the
+- **Device control** — switch AC1/AC2 outputs on/off, toggle **Feed-in Control**
+  (when on, prevents export to the grid), set the
   backup reserve level, and choose the operating mode (Self-powered / AI).
 - **Battery detail** — state of charge, health, cycles, temperature, time-to-full/empty.
 - **Daily energy sensors** (`*_today`) for solar, consumption, grid import/export, and

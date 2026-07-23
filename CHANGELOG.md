@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.4] - 2026-07-23
+
+### Changed
+- Renamed the **Grid Feed-in** switch to **Feed-in Control** to match the
+  EcoFlow app and correct its meaning. `feedGridMode = 2` is *Feed-in Control
+  ON* (the system powers home loads but is prevented from exporting to the
+  grid), and `1` is OFF (export allowed) — verified live against the app toggle.
+  The underlying `cfgFeedGridMode` values are unchanged; only the label and
+  documentation were corrected so ON no longer reads as "feeding the grid".
+
 ## [0.4.3] - 2026-07-23
 
 ### Changed
@@ -130,6 +140,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Config flow with region selection and HMAC-signed Public API authentication.
 - Ready-made Lovelace dashboard (`dashboards/solar_dashboard.yaml`).
 
+[0.4.4]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.4.4
 [0.4.3]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.4.3
 [0.4.2]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.4.2
 [0.4.1]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.4.1
