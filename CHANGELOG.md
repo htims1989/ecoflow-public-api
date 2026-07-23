@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-07-23
+
+### Fixed
+- Operating Mode select showed **Unknown** when the device was in a mode other
+  than Self-powered or AI Optimised. It now also recognises and displays
+  **Scheduled** and **Time-of-Use**. These two are read-only (the Public API
+  rejects setting them with `8524: Validation failed` — they are configured in
+  the EcoFlow app); selecting them raises a clear error instead of silently
+  doing nothing.
+
 ## [0.4.1] - 2026-07-23
 
 ### Fixed
@@ -112,6 +122,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Config flow with region selection and HMAC-signed Public API authentication.
 - Ready-made Lovelace dashboard (`dashboards/solar_dashboard.yaml`).
 
+[0.4.2]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.4.2
 [0.4.1]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.4.1
 [0.4.0]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.4.0
 [0.2.2]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.2.2

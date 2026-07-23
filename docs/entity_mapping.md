@@ -110,7 +110,7 @@ its current state back from the MQTT feedback field shown below.
 | AC2 Output | switch | `cfgRelay3Onoff` | `relay3Onoff` | on/off |
 | Grid Feed-in | switch | `cfgFeedGridMode` | `feedGridMode` | on=2, off=1 |
 | Backup Reserve Level | number | `cfgBackupReverseSoc` | `backupReverseSoc` | 3–95 % |
-| Operating Mode | select | `cfgEnergyStrategyOperateMode` | `energyStrategyOperateMode` | Self-powered / AI Optimised |
+| Operating Mode | select | `cfgEnergyStrategyOperateMode` | `energyStrategyOperateMode` | Settable: Self-powered / AI Optimised. Display-only: Scheduled / Time-of-Use (set in the app; API returns 8524) |
 
 ---
 

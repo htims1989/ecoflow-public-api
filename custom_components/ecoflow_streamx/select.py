@@ -5,6 +5,7 @@ from __future__ import annotations
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
@@ -15,11 +16,23 @@ from .control import StreamControlEntity, resolve_control_target
 MODE_SELF_POWERED = "Self-powered"
 MODE_AI = "AI Optimised"
 
+# Additional modes the device can report but that the Public API refuses to set
+# directly (returns 8524: Validation failed). They are configured through the
+# EcoFlow app's schedule/tariff setup, so we display them read-only.
+MODE_SCHEDULED = "Scheduled"
+MODE_TIME_OF_USE = "Time-of-Use"
+
 _MODE_TO_CFG = {
     MODE_SELF_POWERED: "operateSelfPoweredOpen",
     MODE_AI: "operateIntelligentScheduleModeOpen",
 }
-_FLAG_TO_MODE = {v: k for k, v in _MODE_TO_CFG.items()}
+# All modes the device may report, for display purposes.
+_FLAG_TO_MODE = {
+    "operateSelfPoweredOpen": MODE_SELF_POWERED,
+    "operateIntelligentScheduleModeOpen": MODE_AI,
+    "operateScheduledOpen": MODE_SCHEDULED,
+    "operateTouModeOpen": MODE_TIME_OF_USE,
+}
 
 
 async def async_setup_entry(
@@ -48,11 +61,15 @@ async def async_setup_entry(
 
 
 class StreamOperatingModeSelect(StreamControlEntity, SelectEntity):
-    """System operating mode (Self-powered / AI Optimised)."""
+    """System operating mode.
+
+    Self-powered and AI Optimised can be set via the API. Scheduled and
+    Time-of-Use are shown for display only (set through the EcoFlow app).
+    """
 
     _attr_name = "Operating Mode"
     _attr_icon = "mdi:home-lightning-bolt"
-    _attr_options = [MODE_SELF_POWERED, MODE_AI]
+    _attr_options = [MODE_SELF_POWERED, MODE_AI, MODE_SCHEDULED, MODE_TIME_OF_USE]
 
     @callback
     def _handle_update(self) -> None:
@@ -70,7 +87,10 @@ class StreamOperatingModeSelect(StreamControlEntity, SelectEntity):
     async def async_select_option(self, option: str) -> None:
         flag = _MODE_TO_CFG.get(option)
         if flag is None:
-            return
+            raise HomeAssistantError(
+                f"'{option}' can only be configured in the EcoFlow app, "
+                "not via the Public API."
+            )
         await self._send({"cfgEnergyStrategyOperateMode": {flag: True}})
         self._attr_current_option = option
         self.async_write_ha_state()
