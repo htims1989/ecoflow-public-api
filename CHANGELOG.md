@@ -19,10 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Controls target the system's main device SN (resolved via
   `GET /device/system/main/sn`) and reflect live state from MQTT feedback.
 - New `switch`, `number`, and `select` platforms.
-
-## [0.3.0] - 2026-07-23
-
-### Added
 - AC output entities for the Stream inverter, mapped from live telemetry and
   cross-checked against the EcoFlow Public API field reference:
   - `sensor` **AC Output Power** (`acTotalActivePower`), **AC1 Output Power**
@@ -109,7 +105,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ready-made Lovelace dashboard (`dashboards/solar_dashboard.yaml`).
 
 [0.4.0]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.4.0
-[0.3.0]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.3.0
 [0.2.2]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.2.2
 [0.2.1]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.2.1
 [0.2.0]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.2.0
