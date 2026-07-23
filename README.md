@@ -26,8 +26,8 @@ broker for near-real-time push telemetry.
   grid import/export energy sensors (integrated from live power, reset at local midnight).
 - **Multi-device** — every entity is scoped by serial number, so multiple Stream units
   coexist without collision.
-- **Auto-discovery** — new devices added to your EcoFlow account appear automatically
-  on the next Home Assistant restart.
+- **Device selection** — choose exactly which of your account's devices to set up, and
+  add or remove them any time from the **Configure** screen.
 
 ## Requirements
 
@@ -78,11 +78,20 @@ Copy `custom_components/ecoflow_streamx` into your Home Assistant
    and pick your **region host**:
    - **EU:** `api-e.ecoflow.com`
    - **US / Global:** `api.ecoflow.com`
-3. The integration validates your credentials, discovers your devices, and creates
-   entities for each.
+3. The integration validates your credentials and lists the devices found on your
+   account. **Tick the devices you want to set up** and submit — entities are created
+   for each selected device.
 
-If you add a new device to your EcoFlow account later, just restart Home Assistant —
-it will be picked up automatically.
+### Adding or removing devices later
+
+Your device selection is saved with the integration and is authoritative, so a unit
+you did not select (for example, one you have removed from your EcoFlow account but
+that the API still reports) will **not** be set up and cannot flood the logs with
+reconnect attempts.
+
+To change the selection, go to **Settings → Devices & Services → EcoFlow Stream →
+Configure**. That screen re-scans your account so newly added hardware appears; tick
+the devices you want and submit — the integration reloads automatically.
 
 ## Energy Dashboard
 
@@ -137,8 +146,24 @@ Whole-house grid power, per-phase power/voltage/current, and system health
 
 ![Grid dashboard](docs/images/dashboard-grid.png)
 
+## Entity reference
+
+For a full breakdown of every sensor the integration creates — including the exact
+MQTT field or REST endpoint each one is sourced from, its unit, and any value
+transform applied — see [`docs/entity_mapping.md`](docs/entity_mapping.md).
+
 ## Notes & caveats
 
+- **First data can take a while — entities may show "unavailable" at first.**
+  Telemetry arrives over EcoFlow's MQTT broker as *incremental* push messages, and
+  the integration only reports a value once its field has been seen at least once.
+  After adding the integration (or restarting Home Assistant) it is normal for many
+  sensors to sit as **unavailable** for a period while the device pushes its first
+  full set of readings — some slow-changing fields (battery health, cell voltages,
+  cycle count) may only be reported every ~20–60 seconds, and occasionally longer if
+  the device is idle. Give it a few minutes to populate before assuming something is
+  wrong. Sensors also briefly ride through short MQTT reconnects, only dropping to
+  "unavailable" after a genuine outage (no telemetry for ~5 minutes).
 - **Grid sign convention:** the Smart Meter's derived import/export energy depends on
   the sign of `powGetSysGrid`. If import/export appear swapped, flip `IMPORT_IS_POSITIVE`
   in `custom_components/ecoflow_streamx/meter_energy.py`.

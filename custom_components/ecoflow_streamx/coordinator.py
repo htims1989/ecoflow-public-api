@@ -69,6 +69,9 @@ class StreamMqttCoordinator:
         self._client: mqtt.Client | None = None
         self._last_message_ts: float = 0.0
         self._cancel_timer: Any = None
+        # Whether an active disconnect has already been logged at WARNING, so a
+        # flapping/removed device does not spam the log on every retry.
+        self._disconnect_logged: bool = False
         # A fixed client id keeps us within the 10-unique-ids-per-day limit
         # imposed by the EcoFlow Public API MQTT broker.
         safe_group = group.replace(" ", "-")
@@ -113,6 +116,10 @@ class StreamMqttCoordinator:
         client.username_pw_set(self._creds.account, self._creds.password)
         context = ssl.create_default_context()
         client.tls_set_context(context)
+        # Exponential reconnect backoff. Without this, a device that the broker
+        # keeps dropping (e.g. one removed from the account but still returned
+        # by the API) triggers a tight reconnect loop; the backoff caps that.
+        client.reconnect_delay_set(min_delay=2, max_delay=300)
         client.on_connect = self._on_connect
         client.on_message = self._on_message
         client.on_disconnect = self._on_disconnect
@@ -149,9 +156,17 @@ class StreamMqttCoordinator:
 
     def _on_connect(self, client: mqtt.Client, _userdata, _flags, reason_code, _props=None) -> None:
         _LOGGER.debug("MQTT connected for %s (rc=%s); subscribing %s", self.sn, reason_code, self._topic)
+        self._disconnect_logged = False
         client.subscribe(self._topic, qos=0)
 
     def _on_disconnect(self, _client, _userdata, _flags, reason_code, _props=None) -> None:
+        # Log the first drop at WARNING, then stay quiet until we reconnect, so
+        # a persistently unreachable device cannot flood the log (paho keeps
+        # retrying in the background with the configured backoff).
+        if self._disconnect_logged:
+            _LOGGER.debug("MQTT still disconnected for %s (rc=%s)", self.sn, reason_code)
+            return
+        self._disconnect_logged = True
         _LOGGER.warning("MQTT disconnected for %s (rc=%s); paho will auto-reconnect", self.sn, reason_code)
 
     def _on_message(self, _client, _userdata, message: mqtt.MQTTMessage) -> None:

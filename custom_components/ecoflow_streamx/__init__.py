@@ -39,7 +39,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     creds = await api.certification()
 
-    configured_devices = await _discover_devices(hass, entry, api)
+    configured_devices = await _resolve_devices(hass, entry, api)
 
     devices: list[dict] = []
     for device in configured_devices:
@@ -77,20 +77,32 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {"devices": devices}
 
+    # Reload when the options flow changes the enabled-device selection.
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
-async def _discover_devices(
+async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload the integration when its options/devices change."""
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
+async def _resolve_devices(
     hass: HomeAssistant, entry: ConfigEntry, api: EcoflowPublicApi
 ) -> list[dict]:
-    """Return the devices to set up, auto-discovering any newly added ones.
+    """Return the devices to set up, based on the user's saved selection.
 
-    The stored config entry holds the devices captured when the integration
-    was first added. On every startup we re-query the account so that a device
-    added later (e.g. a second Stream Ultra X) is picked up automatically,
-    without deleting and re-adding the integration. If the account query fails
-    we fall back to the devices already stored on the entry.
+    The config/options flow lets the user choose exactly which devices to
+    enable, and that selection (stored on the entry) is authoritative. We do
+    NOT auto-add devices here: a device the user deselected (for example, a
+    removed unit that the account API still reports) must stay disabled instead
+    of reappearing on every restart. We only refresh the display names from the
+    live account list when it is reachable.
+
+    To add newly-purchased hardware, use the integration's **Configure**
+    (options) screen to re-scan and tick the new device.
     """
     stored: list[dict] = list(entry.data[CONF_DEVICES])
 
@@ -100,23 +112,11 @@ async def _discover_devices(
         _LOGGER.debug("device_list refresh failed, using stored devices: %s", err)
         return stored
 
-    known_sns = {d["sn"] for d in stored}
-    new_devices = [
-        {"sn": d.sn, "name": d.name} for d in live if d.sn not in known_sns
+    live_names = {d.sn: d.name for d in live}
+    return [
+        {"sn": d["sn"], "name": live_names.get(d["sn"], d["name"])}
+        for d in stored
     ]
-    if not new_devices:
-        return stored
-
-    merged = stored + new_devices
-    _LOGGER.info(
-        "Discovered %d new EcoFlow device(s): %s",
-        len(new_devices),
-        ", ".join(d["sn"] for d in new_devices),
-    )
-    hass.config_entries.async_update_entry(
-        entry, data={**entry.data, CONF_DEVICES: merged}
-    )
-    return merged
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

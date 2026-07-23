@@ -10,16 +10,38 @@
           "group": "Group name",
           "api_host": "Region"
         }
+      },
+      "devices": {
+        "title": "Choose devices",
+        "description": "Select which discovered devices you want Home Assistant to set up. You can change this later from the integration's Configure screen.",
+        "data": {
+          "devices": "Devices"
+        }
       }
     },
     "error": {
       "invalid_auth": "Invalid AccessKey or SecretKey.",
       "cannot_connect": "Failed to connect to the EcoFlow API.",
       "no_devices": "No devices were found for this account.",
+      "no_devices_selected": "Select at least one device.",
       "unknown": "An unexpected error occurred."
     },
     "abort": {
       "already_configured": "This account and group are already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "EcoFlow Stream devices",
+        "description": "Tick the devices you want enabled. Untick a device to stop Home Assistant setting it up (for example, a unit you have removed). Newly added hardware is picked up automatically when this screen re-scans your account.",
+        "data": {
+          "devices": "Devices"
+        }
+      }
+    },
+    "error": {
+      "no_devices_selected": "Select at least one device."
     }
   }
 }
