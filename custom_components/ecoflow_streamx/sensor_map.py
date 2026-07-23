@@ -107,7 +107,7 @@ MQTT_SENSORS: tuple[StreamSensorEntityDescription, ...] = (
     # --- AC output (inverter) ---
     StreamSensorEntityDescription(
         key="acTotalActivePower",
-        name="AC Output Power",
+        name="Inverter AC Output",
         native_unit_of_measurement=UnitOfPower.WATT,
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,

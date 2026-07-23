@@ -19,7 +19,7 @@ broker for near-real-time push telemetry.
 
 - **Near-real-time power flow** via MQTT push — solar, battery, grid, and home load.
 - **Per-string PV power** (PV1–PV4) for the Stream Ultra X inverter.
-- **AC output** — total AC output power, per-socket (AC1/AC2) output power, and
+- **AC output** — inverter AC output power, per-socket (AC1/AC2) output power, and
   AC1/AC2 on/off status plus an off-grid indicator.
 - **Device control** — switch AC1/AC2 outputs and grid feed-in on/off, set the
   backup reserve level, and choose the operating mode (Self-powered / AI).

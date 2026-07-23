@@ -40,7 +40,7 @@ Source map: `sensor_map.py` → `MQTT_SENSORS`. `unique_id = {serial}_{MQTT fiel
 | Load From Solar | `powGetSysLoadFromPv` | W | |
 | Load From Grid | `powGetSysLoadFromGrid` | W | |
 | Load From Battery | `powGetSysLoadFromBp` | W | |
-| AC Output Power | `acTotalActivePower` | W | Total AC active output |
+| Inverter AC Output | `acTotalActivePower` | W | Total inverter AC active power (grid-tie output) |
 | AC1 Output Power | `powGetSchuko1` | W | AC1 socket output |
 | AC2 Output Power | `powGetSchuko2` | W | AC2 socket output |
 | Solar Power PV1 | `powGetPv` | W | Per-string input |

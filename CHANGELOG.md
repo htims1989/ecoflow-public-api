@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] - 2026-07-23
+
+### Changed
+- Renamed the **AC Output Power** sensor (`acTotalActivePower`) to **Inverter AC
+  Output** to distinguish it from **Grid Connection Power** (`gridConnectionPower`).
+  The two read almost identically when all inverter output feeds the grid, but
+  they are separate API measurements and can diverge.
+
 ## [0.4.2] - 2026-07-23
 
 ### Fixed
@@ -122,6 +130,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Config flow with region selection and HMAC-signed Public API authentication.
 - Ready-made Lovelace dashboard (`dashboards/solar_dashboard.yaml`).
 
+[0.4.3]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.4.3
 [0.4.2]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.4.2
 [0.4.1]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.4.1
 [0.4.0]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.4.0
