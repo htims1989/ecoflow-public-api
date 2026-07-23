@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-07-23
+
+### Added
+- Integration icon, shipped locally via `custom_components/ecoflow_streamx/brand/`
+  (`icon.png`, `icon@2x.png`). Home Assistant 2026.3+ serves local brand images
+  directly and they take precedence over the home-assistant/brands repository, so
+  the icon now appears via HACS with no external PR required.
+- `scripts/generate_icon.py` to (re)generate the icon assets. It lives outside the
+  integration directory so it is not shipped to users installing via HACS.
+
 ## [0.2.0] - 2026-07-23
 
 ### Added
@@ -58,5 +68,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Config flow with region selection and HMAC-signed Public API authentication.
 - Ready-made Lovelace dashboard (`dashboards/solar_dashboard.yaml`).
 
+[0.2.1]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.2.1
 [0.2.0]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.2.0
 [0.1.0]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.1.0

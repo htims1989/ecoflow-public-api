@@ -1,10 +1,15 @@
-"""Generate the integration icon assets for the home-assistant/brands repo.
+"""Generate the integration icon assets.
 
 Produces `icon.png` (256x256) and `icon@2x.png` (512x512) with a rounded-square
 energy-themed background and a white lightning bolt. Rendered at 4x and
-downsampled for smooth anti-aliasing. Run:
+downsampled for smooth anti-aliasing.
 
-    python3 brands/generate_icon.py
+Home Assistant 2026.3+ serves these directly from the integration's local
+``brand/`` directory (they take precedence over the home-assistant/brands
+repository), so the output goes to
+``custom_components/ecoflow_streamx/brand/``. Run from the repo root:
+
+    python3 scripts/generate_icon.py
 """
 
 from __future__ import annotations
@@ -13,7 +18,11 @@ import os
 
 from PIL import Image, ImageDraw
 
-OUT_DIR = os.path.join(os.path.dirname(__file__), "custom_integrations", "ecoflow_streamx")
+# Repo root is the parent of this script's ``scripts/`` directory.
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUT_DIR = os.path.join(
+    _ROOT, "custom_components", "ecoflow_streamx", "brand"
+)
 
 # Supersample factor for anti-aliasing.
 SS = 4
