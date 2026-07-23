@@ -76,7 +76,7 @@ class StreamMqttCoordinator:
         # A fixed client id keeps us within the 10-unique-ids-per-day limit
         # imposed by the EcoFlow Public API MQTT broker.
         safe_group = group.replace(" ", "-")
-        self._client_id = f"Hassio-streamx-{creds.account}-{safe_group}"
+        self._client_id = f"ecoflow-streamx-{creds.account}-{safe_group}"
         self._topic = f"/open/{creds.account}/{sn}/quota"
 
     @property

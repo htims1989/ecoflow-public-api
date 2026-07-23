@@ -182,7 +182,7 @@ designed to stay well inside them:
   power/battery values. That is by far the largest source of requests in
   poll-based integrations, and it is eliminated here.
 - **A fixed MQTT client ID.** The client ID is derived from your account and group
-  (`Hassio-streamx-{account}-{group}`) and reused on every (re)connect, so
+  (`ecoflow-streamx-{account}-{group}`) and reused on every (re)connect, so
   reconnects do not burn through EcoFlow's daily new-client-ID allowance.
 - **Reconnect backoff.** If the broker drops a device, the MQTT client reconnects
   with exponential backoff (2 s → 300 s) instead of hammering the server, and the
