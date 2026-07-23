@@ -171,6 +171,39 @@ transform applied — see [`docs/entity_mapping.md`](docs/entity_mapping.md).
   kWh are integrated locally (trapezoidal) rather than read from a native counter.
 - Historical energy aggregates are polled every 5 minutes to respect API rate limits.
 
+## Rate limiting
+
+The EcoFlow Public (IoT Open) API enforces limits on how often you may call its
+endpoints and how many MQTT client IDs you may register. This integration is
+designed to stay well inside them:
+
+- **Push, not poll, for live data.** Real-time telemetry comes over a single
+  persistent MQTT subscription per device — the integration does **not** poll for
+  power/battery values. That is by far the largest source of requests in
+  poll-based integrations, and it is eliminated here.
+- **A fixed MQTT client ID.** The client ID is derived from your account and group
+  (`Hassio-streamx-{account}-{group}`) and reused on every (re)connect, so
+  reconnects do not burn through EcoFlow's daily new-client-ID allowance.
+- **Reconnect backoff.** If the broker drops a device, the MQTT client reconnects
+  with exponential backoff (2 s → 300 s) instead of hammering the server, and the
+  disconnect is logged once rather than on every retry. This avoids the retry
+  storms that can get an account temporarily blacklisted.
+- **Infrequent, staggered REST polls.** The only periodic HTTP calls are the daily
+  energy aggregates, polled every **5 minutes** (`ENERGY_POLL_INTERVAL_SEC`) and
+  **only** for devices that expose them (the Smart Meter is skipped entirely). The
+  handful of requests in each poll are issued **sequentially with a ~1 s gap**
+  (`ENERGY_REQUEST_STAGGER_SEC`) rather than all at once, keeping you under the
+  per-second burst limit.
+- **A light startup burst.** At setup/restart the integration makes a small,
+  one-off set of requests (credentials, device list, one live snapshot per device,
+  and a first energy poll for non-meter devices), then settles into the steady
+  state above.
+
+If EcoFlow ever tightens its limits, the two knobs to adjust are
+`ENERGY_POLL_INTERVAL_SEC` (poll less often) and `ENERGY_REQUEST_STAGGER_SEC`
+(space the requests further apart) in
+`custom_components/ecoflow_streamx/const.py`.
+
 ## License
 
 Released under the [MIT License](LICENSE). This project contains only original code and

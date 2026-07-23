@@ -34,6 +34,7 @@ from .const import (
     ENERGY_CODE_GRID,
     ENERGY_CODE_SOLAR,
     ENERGY_POLL_INTERVAL_SEC,
+    ENERGY_REQUEST_STAGGER_SEC,
     MQTT_OUTAGE_SEC,
     MQTT_STALE_SEC,
 )
@@ -218,18 +219,26 @@ class StreamEnergyCoordinator(DataUpdateCoordinator[dict[str, float]]):
 
         result: dict[str, float] = {}
 
-        async def fetch(code: str) -> list[dict[str, Any]]:
-            return await self._api.energy_aggregate(self._sn, code, begin_str, end_str)
-
         codes = (
             ENERGY_CODE_SOLAR,
             ENERGY_CODE_CONSUMPTION,
             ENERGY_CODE_GRID,
             ENERGY_CODE_BATTERY,
         )
-        gathered = await asyncio.gather(
-            *(fetch(code) for code in codes), return_exceptions=True
-        )
+        # Issue the per-code requests sequentially with a short gap rather than
+        # concurrently, to stay under EcoFlow's per-second HTTP burst limit.
+        gathered: list[list[dict[str, Any]] | BaseException] = []
+        for index, code in enumerate(codes):
+            if index:
+                await asyncio.sleep(ENERGY_REQUEST_STAGGER_SEC)
+            try:
+                gathered.append(
+                    await self._api.energy_aggregate(
+                        self._sn, code, begin_str, end_str
+                    )
+                )
+            except BaseException as err:  # noqa: BLE001
+                gathered.append(err)
 
         lists: list[list[dict[str, Any]]] = []
         unsupported = 0

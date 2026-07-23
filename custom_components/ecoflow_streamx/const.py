@@ -24,6 +24,12 @@ DEFAULT_API_HOST: Final = "api-e.ecoflow.com"
 # slowly and count against the REST rate limit, so poll infrequently.
 ENERGY_POLL_INTERVAL_SEC: Final = 300
 
+# Delay between the individual energy-aggregate requests within a single poll.
+# The energy coordinator makes one request per code; issuing them sequentially
+# with a short gap keeps well under EcoFlow's per-second HTTP burst limit
+# instead of firing them all at once.
+ENERGY_REQUEST_STAGGER_SEC: Final = 1.0
+
 # The MQTT keep-alive / staleness threshold. If no push arrives within this
 # window the device is treated as offline.
 MQTT_STALE_SEC: Final = 90

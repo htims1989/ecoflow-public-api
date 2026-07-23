@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-07-23
+
+### Changed
+- Energy-aggregate requests within a poll are now issued **sequentially with a
+  short gap** (`ENERGY_REQUEST_STAGGER_SEC`, default 1 s) instead of concurrently,
+  to stay under EcoFlow's per-second HTTP burst limit.
+
+### Added
+- "Rate limiting" section in the README documenting how the integration stays
+  within EcoFlow's Public API limits (push-based MQTT, fixed client ID, reconnect
+  backoff, infrequent staggered REST polls).
+
 ## [0.2.1] - 2026-07-23
 
 ### Added
@@ -68,6 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Config flow with region selection and HMAC-signed Public API authentication.
 - Ready-made Lovelace dashboard (`dashboards/solar_dashboard.yaml`).
 
+[0.2.2]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.2.2
 [0.2.1]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.2.1
 [0.2.0]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.2.0
 [0.1.0]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.1.0
