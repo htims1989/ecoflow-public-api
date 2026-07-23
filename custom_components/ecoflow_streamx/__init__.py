@@ -23,7 +23,13 @@ from .coordinator import StreamEnergyCoordinator, StreamMqttCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.SENSOR]
+PLATFORMS: list[Platform] = [
+    Platform.BINARY_SENSOR,
+    Platform.NUMBER,
+    Platform.SELECT,
+    Platform.SENSOR,
+    Platform.SWITCH,
+]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -40,6 +46,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     creds = await api.certification()
 
     configured_devices = await _resolve_devices(hass, entry, api)
+
+    # Set commands must target the main device SN of the (possibly multi-device)
+    # system. Resolve it once from the first configured device; fall back to the
+    # device's own SN if the lookup is unavailable.
+    main_sn: str | None = None
+    if configured_devices:
+        first_sn = configured_devices[0]["sn"]
+        try:
+            main_sn = await api.main_device_sn(first_sn)
+        except EcoflowApiError as err:
+            _LOGGER.debug("main device SN lookup failed: %s", err)
+            main_sn = first_sn
 
     devices: list[dict] = []
     for device in configured_devices:
@@ -75,7 +93,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             }
         )
 
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {"devices": devices}
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+        "devices": devices,
+        "api": api,
+        "main_sn": main_sn,
+    }
 
     # Reload when the options flow changes the enabled-device selection.
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))

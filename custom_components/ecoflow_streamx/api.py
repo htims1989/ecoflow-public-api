@@ -122,6 +122,14 @@ class EcoflowPublicApi:
         async with self._session.post(url, headers=headers, json=body) as resp:
             return await self._parse(resp)
 
+    async def _put(self, endpoint: str, body: dict[str, Any]) -> dict[str, Any]:
+        params_str = self._sorted_query(_flatten(body))
+        headers = self._headers(params_str)
+        headers["Content-Type"] = "application/json"
+        url = f"https://{self._host}/iot-open/sign{endpoint}"
+        async with self._session.put(url, headers=headers, json=body) as resp:
+            return await self._parse(resp)
+
     @staticmethod
     async def _parse(resp: aiohttp.ClientResponse) -> dict[str, Any]:
         if resp.status == 401:
@@ -190,3 +198,32 @@ class EcoflowPublicApi:
         if isinstance(data, dict):
             return data.get("data", []) or []
         return data or []
+
+    async def main_device_sn(self, sn: str) -> str:
+        """Return the main device SN of a (possibly multi-device) BKW system.
+
+        Set commands must target the main device SN. For a single-device
+        account this is just ``sn`` itself; the endpoint returns it either way.
+        """
+        payload = await self._get("/device/system/main/sn", {"sn": sn})
+        data = payload.get("data") or {}
+        return data.get("sn") or sn
+
+    async def set_quota(self, sn: str, params: dict[str, Any]) -> dict[str, Any]:
+        """Send a set command (``cfg*`` params) to a device via PUT.
+
+        ``sn`` must be the main device SN for multi-device systems (see
+        :meth:`main_device_sn`). ``params`` holds the ``cfg*`` keys documented
+        by EcoFlow (e.g. ``{"cfgRelay2Onoff": True}``).
+        """
+        body = {
+            "sn": sn,
+            "cmdId": 17,
+            "cmdFunc": 254,
+            "dirDest": 1,
+            "dirSrc": 1,
+            "dest": 2,
+            "needAck": True,
+            "params": params,
+        }
+        return await self._put("/device/quota", body)

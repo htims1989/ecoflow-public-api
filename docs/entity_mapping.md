@@ -36,10 +36,13 @@ Source map: `sensor_map.py` → `MQTT_SENSORS`. `unique_id = {serial}_{MQTT fiel
 | Battery Power | `powGetBpCms` | W | Signed; discharge is negative |
 | Grid Power | `powGetSysGrid` | W | Signed grid exchange |
 | Load Power | `powGetSysLoad` | W | Total home load |
-| Grid Connection Power | `gridConnectionPower` | W | |
+| Grid Connection Power | `gridConnectionPower` | W | Grid port active power; input positive, feed-in negative |
 | Load From Solar | `powGetSysLoadFromPv` | W | |
 | Load From Grid | `powGetSysLoadFromGrid` | W | |
 | Load From Battery | `powGetSysLoadFromBp` | W | |
+| AC Output Power | `acTotalActivePower` | W | Total AC active output |
+| AC1 Output Power | `powGetSchuko1` | W | AC1 socket output |
+| AC2 Output Power | `powGetSchuko2` | W | AC2 socket output |
 | Solar Power PV1 | `powGetPv` | W | Per-string input |
 | Solar Power PV2 | `powGetPv2` | W | Per-string input |
 | Solar Power PV3 | `powGetPv3` | W | Per-string input |
@@ -79,7 +82,35 @@ Source map: `sensor_map.py` → `MQTT_SENSORS`. `unique_id = {serial}_{MQTT fiel
 | --- | --- | --- |
 | Grid Voltage | `gridConnectionVol` | V |
 | Grid Frequency | `gridConnectionFreq` | Hz |
+| Grid Connection Status | `gridConnectionSta` | — (text, e.g. `PANEL_FEED_GRID`) |
 | Wi-Fi Signal | `moduleWifiRssi` | dBm |
+
+### Binary sensors
+
+Source map: `binary_sensor.py` → `MQTT_BINARY_SENSORS`.
+`unique_id = {serial}_{key}`.
+
+| Entity name | MQTT field | Notes |
+| --- | --- | --- |
+| AC1 Output | `relay2Onoff` | AC1 switch on/off (per EcoFlow docs) |
+| AC2 Output | `relay3Onoff` | AC2 switch on/off (per EcoFlow docs) |
+| Off-Grid | `sysOffgrid` | Diagnostic; `true` when running off-grid |
+
+### Controls (write)
+
+Source maps: `switch.py`, `number.py`, `select.py` (shared helpers in
+`control.py`). Set commands go to the system's **main device SN** (resolved via
+`GET /device/system/main/sn`) through `PUT /device/quota`. Each control reads
+its current state back from the MQTT feedback field shown below.
+`unique_id = {main serial}_{feedback field}`.
+
+| Entity | Platform | Set param | Feedback field | Values |
+| --- | --- | --- | --- | --- |
+| AC1 Output | switch | `cfgRelay2Onoff` | `relay2Onoff` | on/off |
+| AC2 Output | switch | `cfgRelay3Onoff` | `relay3Onoff` | on/off |
+| Grid Feed-in | switch | `cfgFeedGridMode` | `feedGridMode` | on=2, off=1 |
+| Backup Reserve Level | number | `cfgBackupReverseSoc` | `backupReverseSoc` | 3–95 % |
+| Operating Mode | select | `cfgEnergyStrategyOperateMode` | `energyStrategyOperateMode` | Self-powered / AI Optimised |
 
 ---
 

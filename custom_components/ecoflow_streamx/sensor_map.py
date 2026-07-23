@@ -104,6 +104,31 @@ MQTT_SENSORS: tuple[StreamSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
     ),
+    # --- AC output (inverter) ---
+    StreamSensorEntityDescription(
+        key="acTotalActivePower",
+        name="AC Output Power",
+        native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+    ),
+    StreamSensorEntityDescription(
+        key="powGetSchuko1",
+        name="AC1 Output Power",
+        native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+    ),
+    StreamSensorEntityDescription(
+        key="powGetSchuko2",
+        name="AC2 Output Power",
+        native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+    ),
     # Per-string PV power
     StreamSensorEntityDescription(
         key="powGetPv",
@@ -293,6 +318,12 @@ MQTT_SENSORS: tuple[StreamSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
         suggested_display_precision=2,
+    ),
+    StreamSensorEntityDescription(
+        key="gridConnectionSta",
+        name="Grid Connection Status",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:transmission-tower",
     ),
     # --- Wi-Fi signal (diagnostic) ---
     StreamSensorEntityDescription(

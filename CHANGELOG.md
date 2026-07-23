@@ -5,6 +5,34 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-07-23
+
+### Added
+- **Device control** (write support) for the Stream inverter, using the
+  documented EcoFlow Public API set commands (`PUT /device/quota`):
+  - `switch` **AC1 Output** (`cfgRelay2Onoff`) and **AC2 Output**
+    (`cfgRelay3Onoff`).
+  - `switch` **Grid Feed-in** (`cfgFeedGridMode`; 1 = off, 2 = on).
+  - `number` **Backup Reserve Level** (`cfgBackupReverseSoc`, 3–95%).
+  - `select` **Operating Mode** (Self-powered / AI Optimised, via
+    `cfgEnergyStrategyOperateMode`).
+  Controls target the system's main device SN (resolved via
+  `GET /device/system/main/sn`) and reflect live state from MQTT feedback.
+- New `switch`, `number`, and `select` platforms.
+
+## [0.3.0] - 2026-07-23
+
+### Added
+- AC output entities for the Stream inverter, mapped from live telemetry and
+  cross-checked against the EcoFlow Public API field reference:
+  - `sensor` **AC Output Power** (`acTotalActivePower`), **AC1 Output Power**
+    (`powGetSchuko1`), **AC2 Output Power** (`powGetSchuko2`).
+  - `sensor` **Grid Connection Status** (`gridConnectionSta`, diagnostic text).
+  - `binary_sensor` **AC1 Output** (`relay2Onoff`) and **AC2 Output**
+    (`relay3Onoff`) — the documented AC1/AC2 switches — plus **Off-Grid**
+    (`sysOffgrid`, diagnostic).
+- New `binary_sensor` platform.
+
 ## [0.2.2] - 2026-07-23
 
 ### Changed
@@ -80,6 +108,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Config flow with region selection and HMAC-signed Public API authentication.
 - Ready-made Lovelace dashboard (`dashboards/solar_dashboard.yaml`).
 
+[0.4.0]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.4.0
+[0.3.0]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.3.0
 [0.2.2]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.2.2
 [0.2.1]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.2.1
 [0.2.0]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.2.0
