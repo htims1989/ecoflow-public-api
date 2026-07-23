@@ -55,15 +55,34 @@ class DeviceInfo:
 
 
 def _flatten(data: dict[str, Any], prefix: str = "") -> dict[str, Any]:
-    """Flatten a nested dict into dotted keys for signing POST bodies."""
+    """Flatten a nested dict/list into dotted keys for signing bodies."""
     items: dict[str, Any] = {}
     for key, value in data.items():
         new_key = f"{prefix}.{key}" if prefix else key
         if isinstance(value, dict):
             items.update(_flatten(value, new_key))
+        elif isinstance(value, list):
+            for index, item in enumerate(value):
+                indexed_key = f"{new_key}[{index}]"
+                if isinstance(item, dict):
+                    items.update(_flatten(item, indexed_key))
+                else:
+                    items[indexed_key] = item
         else:
             items[new_key] = value
     return items
+
+
+def _sign_value(value: Any) -> str:
+    """Serialise a value for the signature string, matching the JSON body.
+
+    Booleans must be lowercase ``true``/``false`` (as sent in JSON), otherwise
+    the server-side signature will not match and the request is rejected with
+    ``8521: signature is wrong``.
+    """
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
 
 
 class EcoflowPublicApi:
@@ -102,7 +121,7 @@ class EcoflowPublicApi:
 
     @staticmethod
     def _sorted_query(params: dict[str, Any]) -> str:
-        return "&".join(f"{k}={params[k]}" for k in sorted(params))
+        return "&".join(f"{k}={_sign_value(params[k])}" for k in sorted(params))
 
     async def _get(self, endpoint: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         params = params or {}

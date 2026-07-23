@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-07-23
+
+### Fixed
+- Control set commands failed with `8521: signature is wrong`. Booleans are now
+  serialised as lowercase `true`/`false` in the request signature (matching the
+  JSON body), and list values are flattened with `key[i]` indices. Switches,
+  the backup-reserve number, and the operating-mode select now work.
+
 ## [0.4.0] - 2026-07-23
 
 ### Added
@@ -104,6 +112,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Config flow with region selection and HMAC-signed Public API authentication.
 - Ready-made Lovelace dashboard (`dashboards/solar_dashboard.yaml`).
 
+[0.4.1]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.4.1
 [0.4.0]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.4.0
 [0.2.2]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.2.2
 [0.2.1]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.2.1
