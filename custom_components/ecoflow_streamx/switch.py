@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
-from .control import StreamControlEntity, resolve_control_target
+from .control import StreamControlEntity, control_devices, resolve_control_target
 
 
 async def async_setup_entry(
@@ -20,31 +20,53 @@ async def async_setup_entry(
 ) -> None:
     """Set up EcoFlow Stream switches from a config entry."""
     runtime = hass.data[DOMAIN][entry.entry_id]
+
+    entities: list[SwitchEntity] = []
+
+    # AC output sockets are per-battery: each device has its own AC1/AC2
+    # relays, so add a pair of switches to every controllable device that
+    # actually exposes them. Not all Stream batteries have AC sockets, so we
+    # only add a switch when its feedback key is present in the device's store.
+    for target in control_devices(runtime):
+        common = {
+            "coordinator": target["coordinator"],
+            "api": target["api"],
+            "target_sn": target["target_sn"],
+            "device_sn": target["device_sn"],
+            "device_info": target["device_info"],
+        }
+        store = target["coordinator"].data
+        if "relay2Onoff" in store:
+            entities.append(
+                StreamRelaySwitch(
+                    name="AC1 Output", feedback_key="relay2Onoff",
+                    cfg_key="cfgRelay2Onoff", **common,
+                )
+            )
+        if "relay3Onoff" in store:
+            entities.append(
+                StreamRelaySwitch(
+                    name="AC2 Output", feedback_key="relay3Onoff",
+                    cfg_key="cfgRelay3Onoff", **common,
+                )
+            )
+
+    # Feed-in Control is a system-wide setting: attach it once to the main
+    # device.
     target = resolve_control_target(runtime)
-    if target is None:
-        return
+    if target is not None:
+        entities.append(
+            StreamFeedGridSwitch(
+                feedback_key="feedGridMode",
+                coordinator=target["coordinator"],
+                api=target["api"],
+                target_sn=target["target_sn"],
+                device_sn=target["device_sn"],
+                device_info=target["device_info"],
+            )
+        )
 
-    common = {
-        "coordinator": target["coordinator"],
-        "api": target["api"],
-        "target_sn": target["target_sn"],
-        "device_sn": target["device_sn"],
-        "device_info": target["device_info"],
-    }
-
-    async_add_entities(
-        [
-            StreamRelaySwitch(
-                name="AC1 Output", feedback_key="relay2Onoff",
-                cfg_key="cfgRelay2Onoff", **common,
-            ),
-            StreamRelaySwitch(
-                name="AC2 Output", feedback_key="relay3Onoff",
-                cfg_key="cfgRelay3Onoff", **common,
-            ),
-            StreamFeedGridSwitch(feedback_key="feedGridMode", **common),
-        ]
-    )
+    async_add_entities(entities)
 
 
 class StreamRelaySwitch(StreamControlEntity, SwitchEntity):

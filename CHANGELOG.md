@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-07-24
+
+### Changed
+- **AC output socket switches (AC1/AC2) are now per-battery.** Previously a
+  single pair of switches targeted the main device only. Each battery has its
+  own AC sockets, so a pair of switches is now added to every controllable
+  device that exposes them, and each switch sends its command to that device's
+  own SN. Batteries without AC sockets are skipped. Feed-in Control, Backup
+  Reserve Level, and Operating Mode remain system-wide (main device).
+  Thanks to @alwaysalready ([#1](https://github.com/htims1989/ecoflow-public-api/issues/1)).
+
 ## [0.4.4] - 2026-07-23
 
 ### Changed
@@ -140,6 +151,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Config flow with region selection and HMAC-signed Public API authentication.
 - Ready-made Lovelace dashboard (`dashboards/solar_dashboard.yaml`).
 
+[0.5.0]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.5.0
 [0.4.4]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.4.4
 [0.4.3]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.4.3
 [0.4.2]: https://github.com/htims1989/ecoflow-public-api/releases/tag/v0.4.2

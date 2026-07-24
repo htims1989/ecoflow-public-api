@@ -15,6 +15,41 @@ from .const import DOMAIN, device_model, is_smart_meter
 from .coordinator import StreamMqttCoordinator
 
 
+def _device_info(sn: str, name: str) -> DeviceInfo:
+    return DeviceInfo(
+        identifiers={(DOMAIN, sn)},
+        name=name,
+        manufacturer="EcoFlow",
+        model=device_model(sn),
+        serial_number=sn,
+    )
+
+
+def control_devices(runtime: dict) -> list[dict]:
+    """Return a control target for every controllable (non-meter) device.
+
+    Per-device controls (e.g. the AC output sockets that each battery has)
+    target that device's own SN and read feedback from its own MQTT store.
+    Returns one dict per non-meter device, each with the same shape as
+    :func:`resolve_control_target`.
+    """
+    targets = []
+    for device in runtime["devices"]:
+        sn = device["sn"]
+        if is_smart_meter(sn):
+            continue
+        targets.append(
+            {
+                "coordinator": device["mqtt"],
+                "api": runtime["api"],
+                "target_sn": sn,
+                "device_info": _device_info(sn, device["name"]),
+                "device_sn": sn,
+            }
+        )
+    return targets
+
+
 def resolve_control_target(runtime: dict) -> dict | None:
     """Pick the device that system-level controls should attach to.
 
@@ -41,13 +76,7 @@ def resolve_control_target(runtime: dict) -> dict | None:
         "coordinator": chosen["mqtt"],
         "api": runtime["api"],
         "target_sn": main_sn or chosen["sn"],
-        "device_info": DeviceInfo(
-            identifiers={(DOMAIN, chosen["sn"])},
-            name=chosen["name"],
-            manufacturer="EcoFlow",
-            model=device_model(chosen["sn"]),
-            serial_number=chosen["sn"],
-        ),
+        "device_info": _device_info(chosen["sn"], chosen["name"]),
         "device_sn": chosen["sn"],
     }
 

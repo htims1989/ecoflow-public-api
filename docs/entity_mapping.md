@@ -99,15 +99,24 @@ Source map: `binary_sensor.py` → `MQTT_BINARY_SENSORS`.
 ### Controls (write)
 
 Source maps: `switch.py`, `number.py`, `select.py` (shared helpers in
-`control.py`). Set commands go to the system's **main device SN** (resolved via
-`GET /device/system/main/sn`) through `PUT /device/quota`. Each control reads
-its current state back from the MQTT feedback field shown below.
-`unique_id = {main serial}_{feedback field}`.
+`control.py`). There are two kinds of control:
+
+- **Per-device** — the AC output sockets. Each battery has its own AC1/AC2
+  relays, so a pair of switches is added to every controllable device that
+  exposes them (`relay2Onoff` / `relay3Onoff` present in its store). Set
+  commands go to that device's own SN.
+- **System-wide** — Feed-in Control, Backup Reserve Level, and Operating Mode.
+  These go to the system's **main device SN** (resolved via
+  `GET /device/system/main/sn`).
+
+All set commands use `PUT /device/quota`. Each control reads its current state
+back from the MQTT feedback field shown below.
+`unique_id = {device serial}_{feedback field}`.
 
 | Entity | Platform | Set param | Feedback field | Values |
 | --- | --- | --- | --- | --- |
-| AC1 Output | switch | `cfgRelay2Onoff` | `relay2Onoff` | on/off |
-| AC2 Output | switch | `cfgRelay3Onoff` | `relay3Onoff` | on/off |
+| AC1 Output | switch | `cfgRelay2Onoff` | `relay2Onoff` | on/off; per-device (one per battery with AC sockets) |
+| AC2 Output | switch | `cfgRelay3Onoff` | `relay3Onoff` | on/off; per-device (one per battery with AC sockets) |
 | Feed-in Control | switch | `cfgFeedGridMode` | `feedGridMode` | on=2 (blocks grid export), off=1 (export allowed); mirrors the app toggle |
 | Backup Reserve Level | number | `cfgBackupReverseSoc` | `backupReverseSoc` | 3–95 % |
 | Operating Mode | select | `cfgEnergyStrategyOperateMode` | `energyStrategyOperateMode` | Settable: Self-powered / AI Optimised. Display-only: Scheduled / Time-of-Use (set in the app; API returns 8524) |
