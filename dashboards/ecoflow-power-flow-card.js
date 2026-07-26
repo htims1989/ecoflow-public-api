@@ -188,9 +188,9 @@ class EcoflowPowerFlowCard extends HTMLElement {
         <text class="val" x="837" y="190" id="ef-val-solar">—</text>
       </g>
 
-      <!-- BATTERY (top row) — leader up, centred between battery & house (1180,839) -->
+      <!-- BATTERY (top row) — leader up, centred between battery & house (1180,829) -->
       <g>
-        <line class="tick" x1="1180" y1="839" x2="1180" y2="128"/>
+        <line class="tick" x1="1180" y1="829" x2="1180" y2="128"/>
         <text class="lbl" x="1192" y="150" id="ef-lbl-batt">BATTERY</text>
         <text class="val" x="1192" y="190" id="ef-val-batt">—</text>
         <text class="soc" x="1192" y="222" id="ef-val-soc">—</text>
