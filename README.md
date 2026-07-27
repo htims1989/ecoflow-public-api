@@ -1,14 +1,14 @@
 # EcoFlow Stream (Public API) — Home Assistant Integration
 
-A lightweight, independent Home Assistant integration for the **EcoFlow Stream Ultra X**
-inverter and the EcoFlow **Smart Meter**, built on EcoFlow's
+A lightweight, independent Home Assistant integration for **EcoFlow Stream** inverter
+systems and the EcoFlow **Smart Meter**, built on EcoFlow's
 **official public developer API** (IoT Open) — HMAC-signed HTTP plus the EcoFlow MQTT
 broker for near-real-time push telemetry.
 
-> **Supported devices:** this integration has only been developed and verified against
-> the **Stream Ultra X** inverter and the **Smart Meter**. Other Stream models
-> (Stream, Stream Max, Stream Ultra) are **not officially supported** — see
-> [Supported devices](#supported-devices) below.
+> **Supported devices:** this integration is developed and verified against the
+> **Stream Ultra X** (including multi-battery cascade systems) and the **Smart Meter**.
+> The **Stream Max** is also supported. Other Stream models are not officially
+> supported — see [Supported devices](#supported-devices) below.
 
 > This is a clean-room integration that uses only EcoFlow's documented public API.
 > It is **not** derived from any other integration's code. It was inspired by the
@@ -18,7 +18,12 @@ broker for near-real-time push telemetry.
 ## Features
 
 - **Near-real-time power flow** via MQTT push — solar, battery, grid, and home load.
-- **Per-string PV power** (PV1–PV4) for the Stream Ultra X inverter.
+- **Per-string PV power** (PV1–PV4) per inverter.
+- **Multi-battery (cascade) systems** — two or more daisy-chained Stream batteries
+  are fully supported. System-level aggregate sensors appear only on the master device;
+  each battery also has its own per-device SoC, temperature, DC bus power, and PV
+  string sensors. A **Device Role** diagnostic sensor identifies each unit as Primary
+  or Secondary.
 - **AC output** — inverter AC output power, per-socket (AC1/AC2) output power, and
   AC1/AC2 on/off status plus an off-grid indicator.
 - **Device control** — switch AC1/AC2 outputs on/off, toggle **Feed-in Control**
@@ -43,25 +48,19 @@ broker for near-real-time push telemetry.
 
 ## Supported devices
 
-This integration is developed and tested **only** against:
+This integration is developed and tested against:
 
 | Device | Live power sensors | Daily energy (`*_today`) sensors |
 | --- | :---: | :---: |
-| **Stream Ultra X** (inverter) | ✅ verified | ✅ verified |
+| **Stream Ultra X** (single or multi-battery cascade) | ✅ verified | ✅ verified |
+| **Stream Max** | ✅ verified | ✅ verified |
 | **Smart Meter** | ✅ verified | ✅ (derived from live power) |
 
-**Other Stream models (Stream, Stream Max, Stream Ultra) are not officially
-supported.** They will still be *discovered* and set up without errors, but:
-
-- Live power sensors may or may not populate, depending on whether the model
-  publishes the same MQTT field names as the Ultra X (unverified).
-- The **daily energy sensors will not work** — the historical-energy API codes are
-  specific to the Stream Ultra X (`BK621`), so those sensors are skipped on other
-  models.
-
-Nothing should crash on an unsupported model — it simply degrades: unsupported sensors
-stay unavailable or are not created. If you have another Stream model and want to
-help add support, please open an issue with a diagnostic dump.
+**Other Stream models (Stream, Stream Ultra) are not officially supported.** They will
+still be *discovered* and set up without errors, but live power sensors may or may not
+populate depending on whether the model publishes the same MQTT field names (unverified).
+If you have another Stream model and want to help add support, please open an issue
+with a diagnostic dump.
 
 ## Installation
 
@@ -117,30 +116,33 @@ A ready-made Lovelace dashboard is included at
 [`dashboards/solar_dashboard.yaml`](dashboards/solar_dashboard.yaml). It uses the
 following HACS frontend cards:
 
-- Power Flow Card Plus (`custom:power-flow-card-plus`)
-- ApexCharts Card (`custom:apexcharts-card`)
-- Mushroom (`custom:mushroom-*`)
+- **EcoFlow Power Flow Card** (`custom:ecoflow-power-flow-card`)
+- **ApexCharts Card** (`custom:apexcharts-card`)
+- **Mushroom** (`custom:mushroom-*`)
 
 Copy its contents into a new dashboard via **Edit → Raw configuration editor**, then
-adjust the entity IDs to match your device serial numbers.
+replace the `XXXX` / `XXXX2` / `YYYY` placeholder prefixes with your own device
+serial-number suffixes (as shown in Developer Tools → States).
 
 ### Overview
 
-Live power flow between solar, battery, grid, and home, plus "right now" and "today"
-summary tiles.
+Live power flow between solar, battery, grid, and home. Right-now tiles plus
+per-battery SoC and today's energy summary alongside the flow card.
 
 ![Overview dashboard](docs/images/dashboard-overview.png)
 
 ### Solar
 
-Solar power today, per-string (PV1–PV4) output gauges, and a 7-day energy history.
+Solar power today, per-string (PV1–PV4) output gauges for each battery, and a
+7-day energy history.
 
 ![Solar dashboard](docs/images/dashboard-solar.png)
 
 ### Battery
 
-State of charge, health, cycles, temperature, full-energy capacity, and
-charge/discharge time estimates.
+System aggregate SoC gauge and chart, per-battery SoC comparison, individual battery
+health, cycles, temperature, capacity, charge/discharge time estimates, and Device
+Role (Primary / Secondary).
 
 ![Battery dashboard](docs/images/dashboard-battery.png)
 
@@ -186,9 +188,11 @@ designed to stay well inside them:
   persistent MQTT subscription per device — the integration does **not** poll for
   power/battery values. That is by far the largest source of requests in
   poll-based integrations, and it is eliminated here.
-- **A fixed MQTT client ID.** The client ID is derived from your account and group
-  (`ecoflow-streamx-{account}-{group}`) and reused on every (re)connect, so
-  reconnects do not burn through EcoFlow's daily new-client-ID allowance.
+- **A single shared MQTT connection.** All devices in an account share one paho
+  MQTT client (one client ID, one broker connection). The client subscribes to every
+  device's topic and routes messages internally. This is the pattern recommended by
+  EcoFlow and avoids the mutual-kickout disconnect loop that occurs when multiple
+  clients share a client ID.
 - **Reconnect backoff.** If the broker drops a device, the MQTT client reconnects
   with exponential backoff (2 s → 300 s) instead of hammering the server, and the
   disconnect is logged once rather than on every retry. This avoids the retry

@@ -5,6 +5,50 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-07-27
+
+### Added
+- **Multi-battery (cascade) system support.** Two or more daisy-chained Stream
+  batteries are now handled correctly. The cascade master is resolved at startup
+  via `GET /device/system/main/sn`; system-level aggregate sensors (`cmsBattSoc`,
+  `powGetPvSum`, `powGetSysGrid`, etc.) are only created for the master device.
+  Secondary batteries show their own per-device sensors (SoC, temperature, DC bus
+  power, per-string PV) and are never polluted with the master's system-wide values.
+- **Device Role sensor** — a new static diagnostic sensor (`Primary` / `Secondary`)
+  on every Stream battery device so you can identify each unit at a glance.
+- **Stale entity cleanup** — on startup, any system-level or duplicate energy sensor
+  entities left over on a secondary device from a previous integration version are
+  automatically disabled via `RegistryEntryDisabler.INTEGRATION`.
+- **Updated dashboard** — per-battery SoC tiles and Device Role tiles in the Overview
+  and Battery views; Battery 2 PV strings section in the Solar view; both batteries
+  labelled Primary/Secondary throughout.
+
+### Changed
+- **Single shared MQTT connection.** Replaced per-device paho MQTT clients (which all
+  shared one client ID and caused a mutual-kickout disconnect storm on multi-device
+  systems) with a single `StreamMqttHub` per config entry. One connection subscribes
+  to all device topics and routes messages to the correct coordinator. Fixes the rapid
+  MQTT connect/disconnect warnings reported in
+  [#3](https://github.com/htims1989/ecoflow-public-api/issues/3).
+- **AC socket detection is now model-based.** `relay2Onoff` / `relay3Onoff` appear
+  in the broker payload for every device regardless of hardware, so the previous
+  `in store` check was unreliable. The integration now uses the SN prefix to determine
+  which relays a device physically has: BK41 (Stream Max) gets one AC switch; BK61
+  and other Stream inverters get two; Smart Meters get none. Fixes
+  [#2](https://github.com/htims1989/ecoflow-public-api/issues/2).
+- **Historical energy coordinator created for master device only.** The energy API
+  codes are `MASTER_DATA` level and return identical data regardless of which device
+  SN is queried, so creating coordinators for secondary devices produced duplicate
+  sensors. Only the cascade master device now gets a `StreamEnergyCoordinator`.
+- **BK61 model correctly identified as Stream Ultra X.** The `device_model()` function
+  now maps the `BK61` SN prefix to `Stream Ultra X` (previously fell through to the
+  generic `Stream` label).
+
+### Fixed
+- `ssl.create_default_context()` was being called on the async event loop. This
+  triggers a blocking-call warning in HA 2026.x (Python 3.14) because the function
+  loads CA certificates from disk. Moved into `hass.async_add_executor_job()`.
+
 ## [0.5.0] - 2026-07-24
 
 ### Changed
