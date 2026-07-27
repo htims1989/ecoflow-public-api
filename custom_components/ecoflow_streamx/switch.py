@@ -9,7 +9,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
+from .const import DOMAIN, ac_relay_keys
 from .control import StreamControlEntity, control_devices, resolve_control_target
 
 
@@ -35,15 +35,15 @@ async def async_setup_entry(
             "device_sn": target["device_sn"],
             "device_info": target["device_info"],
         }
-        store = target["coordinator"].data
-        if "relay2Onoff" in store:
+        relay_keys = ac_relay_keys(target["device_sn"])
+        if "relay2Onoff" in relay_keys:
             entities.append(
                 StreamRelaySwitch(
                     name="AC1 Output", feedback_key="relay2Onoff",
                     cfg_key="cfgRelay2Onoff", **common,
                 )
             )
-        if "relay3Onoff" in store:
+        if "relay3Onoff" in relay_keys:
             entities.append(
                 StreamRelaySwitch(
                     name="AC2 Output", feedback_key="relay3Onoff",

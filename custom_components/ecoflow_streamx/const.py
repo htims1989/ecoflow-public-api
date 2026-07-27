@@ -72,3 +72,24 @@ def is_smart_meter(sn: str) -> bool:
     """Whether the serial number belongs to a Smart Meter."""
     return sn.startswith("BK21")
 
+
+def ac_relay_keys(sn: str) -> tuple[str, ...]:
+    """Return the AC relay feedback keys that this device's hardware supports.
+
+    The quota/all REST snapshot and MQTT payloads often contain relay fields
+    even for models that have no physical AC sockets (the broker returns
+    default values for all known keys). Filtering on field presence is
+    therefore unreliable; this function uses the SN prefix instead.
+
+    - Smart Meter (BK21): no AC sockets.
+    - Stream Max (BK41): one AC socket, ``relay2Onoff`` only.
+    - Stream Ultra X (BK61) and all other Stream inverters: two AC sockets,
+      ``relay2Onoff`` (AC1) + ``relay3Onoff`` (AC2).
+    """
+    if is_smart_meter(sn):
+        return ()
+    if sn.startswith("BK41"):  # Stream Max — single AC socket
+        return ("relay2Onoff",)
+    # Stream Ultra X (BK61), BK51, BK31, and unknown Stream inverters
+    return ("relay2Onoff", "relay3Onoff")
+
