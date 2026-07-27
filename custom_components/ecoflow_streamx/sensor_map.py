@@ -35,6 +35,11 @@ class StreamSensorEntityDescription(SensorEntityDescription):
     """Sensor description with an optional value transform."""
 
     value_fn: Callable[[Any], Any] | None = None
+    # When True, the sensor is only created for the cascade-system master
+    # device. Secondary devices in a multi-battery setup do not push
+    # system-level aggregated fields (powGetPvSum, cmsBattSoc, …) via MQTT
+    # — they only report their own hardware state.
+    system_only: bool = False
 
 
 def _milli(value: Any) -> float:
@@ -54,6 +59,7 @@ MQTT_SENSORS: tuple[StreamSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:solar-power",
+        system_only=True,
     ),
     StreamSensorEntityDescription(
         key="powGetBpCms",
@@ -61,6 +67,7 @@ MQTT_SENSORS: tuple[StreamSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfPower.WATT,
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
+        system_only=True,
     ),
     StreamSensorEntityDescription(
         key="powGetSysGrid",
@@ -68,6 +75,7 @@ MQTT_SENSORS: tuple[StreamSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfPower.WATT,
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
+        system_only=True,
     ),
     StreamSensorEntityDescription(
         key="powGetSysLoad",
@@ -75,6 +83,7 @@ MQTT_SENSORS: tuple[StreamSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfPower.WATT,
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
+        system_only=True,
     ),
     StreamSensorEntityDescription(
         key="gridConnectionPower",
@@ -89,6 +98,7 @@ MQTT_SENSORS: tuple[StreamSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfPower.WATT,
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
+        system_only=True,
     ),
     StreamSensorEntityDescription(
         key="powGetSysLoadFromGrid",
@@ -96,6 +106,7 @@ MQTT_SENSORS: tuple[StreamSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfPower.WATT,
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
+        system_only=True,
     ),
     StreamSensorEntityDescription(
         key="powGetSysLoadFromBp",
@@ -103,6 +114,7 @@ MQTT_SENSORS: tuple[StreamSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfPower.WATT,
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
+        system_only=True,
     ),
     # --- AC output (inverter) ---
     StreamSensorEntityDescription(
@@ -166,6 +178,7 @@ MQTT_SENSORS: tuple[StreamSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.BATTERY,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
+        system_only=True,
     ),
     StreamSensorEntityDescription(
         key="f32ShowSoc",
@@ -181,30 +194,35 @@ MQTT_SENSORS: tuple[StreamSensorEntityDescription, ...] = (
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
+        system_only=True,
     ),
     StreamSensorEntityDescription(
         key="cmsMaxChgSoc",
         name="Max Charge Level",
         native_unit_of_measurement=PERCENTAGE,
         entity_category=EntityCategory.DIAGNOSTIC,
+        system_only=True,
     ),
     StreamSensorEntityDescription(
         key="cmsMinDsgSoc",
         name="Min Discharge Level",
         native_unit_of_measurement=PERCENTAGE,
         entity_category=EntityCategory.DIAGNOSTIC,
+        system_only=True,
     ),
     StreamSensorEntityDescription(
         key="cmsChgRemTime",
         name="Charge Remaining Time",
         native_unit_of_measurement=UnitOfTime.MINUTES,
         device_class=SensorDeviceClass.DURATION,
+        system_only=True,
     ),
     StreamSensorEntityDescription(
         key="cmsDsgRemTime",
         name="Discharge Remaining Time",
         native_unit_of_measurement=UnitOfTime.MINUTES,
         device_class=SensorDeviceClass.DURATION,
+        system_only=True,
     ),
     StreamSensorEntityDescription(
         key="cmsBattFullEnergy",
@@ -213,6 +231,7 @@ MQTT_SENSORS: tuple[StreamSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.ENERGY_STORAGE,
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
+        system_only=True,
     ),
     StreamSensorEntityDescription(
         key="cycles",
@@ -244,6 +263,7 @@ MQTT_SENSORS: tuple[StreamSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
+        system_only=True,
     ),
     StreamSensorEntityDescription(
         key="bmsMinCellTemp",
@@ -252,6 +272,7 @@ MQTT_SENSORS: tuple[StreamSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
+        system_only=True,
     ),
     StreamSensorEntityDescription(
         key="maxMosTemp",
@@ -309,6 +330,7 @@ MQTT_SENSORS: tuple[StreamSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
         suggested_display_precision=1,
+        system_only=True,
     ),
     StreamSensorEntityDescription(
         key="gridConnectionFreq",
@@ -318,12 +340,14 @@ MQTT_SENSORS: tuple[StreamSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
         suggested_display_precision=2,
+        system_only=True,
     ),
     StreamSensorEntityDescription(
         key="gridConnectionSta",
         name="Grid Connection Status",
         entity_category=EntityCategory.DIAGNOSTIC,
         icon="mdi:transmission-tower",
+        system_only=True,
     ),
     # --- Wi-Fi signal (diagnostic) ---
     StreamSensorEntityDescription(

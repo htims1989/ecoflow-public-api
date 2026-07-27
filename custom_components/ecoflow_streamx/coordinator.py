@@ -43,20 +43,26 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class StreamMqttCoordinator:
-    """Subscribes to a device's MQTT quota topic and merges partial payloads.
+    """Holds a single device's merged telemetry state.
 
     The EcoFlow Public API pushes *incremental* JSON payloads: each message
     carries only the fields that changed. Consumers need the full current
     state, so this coordinator keeps a persistent dict and merges every
     message into it, notifying listeners after each update.
+
+    This class no longer owns an MQTT connection. A single shared
+    :class:`StreamMqttHub` per config entry maintains one broker connection for
+    the whole account and routes each device's messages to its coordinator via
+    :meth:`ingest`. That matches the EcoFlow broker's model (one client id is
+    bound to the account and may subscribe to any of its devices) and avoids
+    the mutual-kickout disconnect loop that arises when several clients share a
+    client id.
     """
 
     def __init__(
         self,
         hass: HomeAssistant,
-        creds: MqttCredentials,
         sn: str,
-        group: str,
         initial: dict[str, Any] | None = None,
     ) -> None:
         self.hass = hass
@@ -65,19 +71,9 @@ class StreamMqttCoordinator:
         # battery level are available immediately, without waiting for the
         # first ~20s BMS heartbeat over MQTT.
         self.data: dict[str, Any] = dict(initial) if initial else {}
-        self._creds = creds
         self._listeners: list[Any] = []
-        self._client: mqtt.Client | None = None
         self._last_message_ts: float = 0.0
         self._cancel_timer: Any = None
-        # Whether an active disconnect has already been logged at WARNING, so a
-        # flapping/removed device does not spam the log on every retry.
-        self._disconnect_logged: bool = False
-        # A fixed client id keeps us within the 10-unique-ids-per-day limit
-        # imposed by the EcoFlow Public API MQTT broker.
-        safe_group = group.replace(" ", "-")
-        self._client_id = f"ecoflow-streamx-{creds.account}-{safe_group}"
-        self._topic = f"/open/{creds.account}/{sn}/quota"
 
     @property
     def online(self) -> bool:
@@ -109,17 +105,91 @@ class StreamMqttCoordinator:
 
         return _remove
 
+    def start(self) -> None:
+        """Start the availability tick timer.
+
+        The shared hub owns the MQTT connection; this only arms the periodic
+        re-notification so entities can transition to "unavailable" during a
+        real outage even though no messages arrive.
+        """
+        self._cancel_timer = async_track_time_interval(
+            self.hass,
+            self._async_availability_tick,
+            timedelta(seconds=AVAILABILITY_CHECK_SEC),
+        )
+
+    def stop(self) -> None:
+        """Cancel the availability tick timer."""
+        if self._cancel_timer is not None:
+            self._cancel_timer()
+            self._cancel_timer = None
+
+    @callback
+    def _async_availability_tick(self, _now: Any) -> None:
+        self._notify_listeners()
+
+    def ingest(self, params: dict[str, Any]) -> None:
+        """Merge an incremental payload into the store (called by the hub).
+
+        Runs in the MQTT network thread. The merge and timestamp update happen
+        here; listener notification is marshalled onto the HA event loop.
+        """
+        self.data.update(params)
+        self._last_message_ts = time.time()
+        self.hass.loop.call_soon_threadsafe(self._notify_listeners)
+
+    @callback
+    def _notify_listeners(self) -> None:
+        for update_callback in list(self._listeners):
+            update_callback()
+
+
+class StreamMqttHub:
+    """A single MQTT connection for one account, shared across all its devices.
+
+    The EcoFlow Public API broker binds a client id to the account, and that
+    one client may subscribe to any device registered to the account. Using a
+    single connection (rather than one per device sharing a client id) avoids
+    the broker kicking earlier connections off when a new one with the same id
+    arrives, which previously produced a storm of connect/disconnect warnings
+    on multi-device systems.
+    """
+
+    def __init__(self, hass: HomeAssistant, creds: MqttCredentials, group: str) -> None:
+        self.hass = hass
+        self._creds = creds
+        self._client: mqtt.Client | None = None
+        # topic -> coordinator that should receive its payloads.
+        self._routes: dict[str, StreamMqttCoordinator] = {}
+        # A fixed, deterministic client id keeps us within the
+        # 10-unique-ids-per-day limit: the same id is reused on every restart
+        # so restarts don't burn through the quota. One id serves the whole
+        # account, since a single client can subscribe to every device topic.
+        safe_group = group.replace(" ", "-")
+        self._client_id = f"ecoflow-streamx-{creds.account}-{safe_group}"
+        # Whether an active disconnect has already been logged at WARNING, so a
+        # flapping broker does not spam the log on every retry.
+        self._disconnect_logged = False
+
+    def register(self, coordinator: StreamMqttCoordinator) -> None:
+        """Route a device's quota topic to its coordinator.
+
+        Must be called before :meth:`async_start` (topics are subscribed on
+        connect).
+        """
+        topic = f"/open/{self._creds.account}/{coordinator.sn}/quota"
+        self._routes[topic] = coordinator
+
     async def async_start(self) -> None:
-        """Create the MQTT client and connect in the executor."""
+        """Create the single MQTT client and connect in the executor."""
         client = mqtt.Client(
             mqtt.CallbackAPIVersion.VERSION2, client_id=self._client_id
         )
         client.username_pw_set(self._creds.account, self._creds.password)
-        context = ssl.create_default_context()
+        context = await self.hass.async_add_executor_job(ssl.create_default_context)
         client.tls_set_context(context)
-        # Exponential reconnect backoff. Without this, a device that the broker
-        # keeps dropping (e.g. one removed from the account but still returned
-        # by the API) triggers a tight reconnect loop; the backoff caps that.
+        # Exponential reconnect backoff caps the retry rate if the broker keeps
+        # dropping the connection.
         client.reconnect_delay_set(min_delay=2, max_delay=300)
         client.on_connect = self._on_connect
         client.on_message = self._on_message
@@ -131,23 +201,8 @@ class StreamMqttCoordinator:
         )
         client.loop_start()
 
-        # Periodically re-notify listeners so entities can transition to
-        # "unavailable" during a real outage even though no messages arrive.
-        self._cancel_timer = async_track_time_interval(
-            self.hass,
-            self._async_availability_tick,
-            timedelta(seconds=AVAILABILITY_CHECK_SEC),
-        )
-
-    @callback
-    def _async_availability_tick(self, _now: Any) -> None:
-        self._notify_listeners()
-
     async def async_stop(self) -> None:
         """Disconnect and tear down the MQTT client."""
-        if self._cancel_timer is not None:
-            self._cancel_timer()
-            self._cancel_timer = None
         if self._client is not None:
             await self.hass.async_add_executor_job(self._client.loop_stop)
             await self.hass.async_add_executor_job(self._client.disconnect)
@@ -156,38 +211,36 @@ class StreamMqttCoordinator:
     # --- paho callbacks (run in the MQTT network thread) ---
 
     def _on_connect(self, client: mqtt.Client, _userdata, _flags, reason_code, _props=None) -> None:
-        _LOGGER.debug("MQTT connected for %s (rc=%s); subscribing %s", self.sn, reason_code, self._topic)
         self._disconnect_logged = False
-        client.subscribe(self._topic, qos=0)
+        # (Re)subscribe to every device topic on each successful connect so a
+        # reconnect restores all subscriptions.
+        for topic in self._routes:
+            _LOGGER.debug("MQTT connected (rc=%s); subscribing %s", reason_code, topic)
+            client.subscribe(topic, qos=0)
 
     def _on_disconnect(self, _client, _userdata, _flags, reason_code, _props=None) -> None:
         # Log the first drop at WARNING, then stay quiet until we reconnect, so
-        # a persistently unreachable device cannot flood the log (paho keeps
+        # a persistently unreachable broker cannot flood the log (paho keeps
         # retrying in the background with the configured backoff).
         if self._disconnect_logged:
-            _LOGGER.debug("MQTT still disconnected for %s (rc=%s)", self.sn, reason_code)
+            _LOGGER.debug("MQTT still disconnected (rc=%s)", reason_code)
             return
         self._disconnect_logged = True
-        _LOGGER.warning("MQTT disconnected for %s (rc=%s); paho will auto-reconnect", self.sn, reason_code)
+        _LOGGER.warning("MQTT disconnected (rc=%s); paho will auto-reconnect", reason_code)
 
     def _on_message(self, _client, _userdata, message: mqtt.MQTTMessage) -> None:
+        coordinator = self._routes.get(message.topic)
+        if coordinator is None:
+            return
         try:
             payload = json.loads(message.payload.decode())
         except (ValueError, UnicodeDecodeError):
-            _LOGGER.debug("Ignoring non-JSON MQTT payload for %s", self.sn)
+            _LOGGER.debug("Ignoring non-JSON MQTT payload for %s", coordinator.sn)
             return
         params = payload.get("param", payload.get("params", payload.get("data", payload)))
         if not isinstance(params, dict):
             return
-        # Merge into the persistent store and notify listeners on the HA loop.
-        self.data.update(params)
-        self._last_message_ts = time.time()
-        self.hass.loop.call_soon_threadsafe(self._notify_listeners)
-
-    @callback
-    def _notify_listeners(self) -> None:
-        for update_callback in list(self._listeners):
-            update_callback()
+        coordinator.ingest(params)
 
 
 class StreamEnergyCoordinator(DataUpdateCoordinator[dict[str, float]]):

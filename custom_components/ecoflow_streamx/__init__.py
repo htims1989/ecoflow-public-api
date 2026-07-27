@@ -19,7 +19,11 @@ from .const import (
     DOMAIN,
     is_smart_meter,
 )
-from .coordinator import StreamEnergyCoordinator, StreamMqttCoordinator
+from .coordinator import (
+    StreamEnergyCoordinator,
+    StreamMqttCoordinator,
+    StreamMqttHub,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,6 +63,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.debug("main device SN lookup failed: %s", err)
             main_sn = first_sn
 
+    # A single MQTT connection serves the whole account; all device
+    # coordinators are routed through it. This avoids the connect/disconnect
+    # storm that a per-device client (sharing one broker client id) causes.
+    hub = StreamMqttHub(hass, creds, group)
+
     devices: list[dict] = []
     for device in configured_devices:
         sn = device["sn"]
@@ -72,13 +81,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.debug("quota/all snapshot unavailable for %s: %s", sn, err)
             snapshot = {}
 
-        mqtt_coord = StreamMqttCoordinator(hass, creds, sn, group, snapshot)
-        await mqtt_coord.async_start()
+        mqtt_coord = StreamMqttCoordinator(hass, sn, snapshot)
+        hub.register(mqtt_coord)
+        mqtt_coord.start()
 
-        # Smart Meters have no historical energy aggregates (quota/data -> 1006),
-        # so skip the energy coordinator for them entirely.
+        # Historical energy aggregates are system-level (MASTER_DATA codes)
+        # and only need to be fetched once, from the main device. Secondary
+        # cascade batteries would return identical data, producing duplicates.
+        # Smart Meters have no energy aggregates at all (quota/data -> 1006).
         energy_coord: StreamEnergyCoordinator | None = None
-        if not is_smart_meter(sn):
+        if not is_smart_meter(sn) and sn == main_sn:
             energy_coord = StreamEnergyCoordinator(hass, api, sn)
             await energy_coord.async_config_entry_first_refresh()
             if not energy_coord.supported:
@@ -93,10 +105,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             }
         )
 
+    # Connect once, after all device topics have been registered, so the
+    # initial subscribe covers every device.
+    await hub.async_start()
+
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "devices": devices,
         "api": api,
         "main_sn": main_sn,
+        "hub": hub,
     }
 
     # Reload when the options flow changes the enabled-device selection.
@@ -146,6 +163,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         runtime = hass.data[DOMAIN].pop(entry.entry_id)
+        await runtime["hub"].async_stop()
         for device in runtime["devices"]:
-            await device["mqtt"].async_stop()
+            device["mqtt"].stop()
     return unload_ok

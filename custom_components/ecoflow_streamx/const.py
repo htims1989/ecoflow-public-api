@@ -63,6 +63,8 @@ def device_model(sn: str) -> str:
     """Best-effort device model from the serial-number prefix."""
     if sn.startswith("BK21"):
         return "Smart Meter"
+    if sn.startswith("BK61"):
+        return "Stream Ultra X"
     return "Stream"
 
 

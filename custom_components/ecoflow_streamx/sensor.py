@@ -7,7 +7,9 @@ from typing import Any
 from homeassistant.components.sensor import RestoreSensor, SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -29,6 +31,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up EcoFlow Stream sensors from a config entry."""
     runtime = hass.data[DOMAIN][entry.entry_id]
+    main_sn = runtime.get("main_sn")
 
     entities: list[SensorEntity] = []
     for device in runtime["devices"]:
@@ -37,12 +40,43 @@ async def async_setup_entry(
         mqtt_coord: StreamMqttCoordinator = device["mqtt"]
         energy_coord: StreamEnergyCoordinator | None = device["energy"]
         device_info = _device_info(sn, name)
+        is_main_device = sn == main_sn
+
+        # Role sensor — static diagnostic showing Primary / Secondary.
+        if not is_smart_meter(sn):
+            entities.append(StreamRoleSensor(sn, is_main_device, device_info))
 
         mqtt_map = METER_SENSORS if is_smart_meter(sn) else MQTT_SENSORS
         for description in mqtt_map:
+            # System-level sensors (aggregated power flows, combined SoC, …)
+            # are only pushed by the cascade-system master device. Skip them
+            # for secondary batteries to avoid showing stale 0 values.
+            if description.system_only and not is_main_device:
+                continue
             entities.append(
                 StreamMqttSensor(mqtt_coord, description, sn, device_info)
             )
+
+        # Disable any stale system_only / energy entities that remain in the
+        # registry for this secondary device from a previous integration run
+        # (before the system_only flag was introduced). They will never be
+        # provided again, so marking them disabled keeps the device page clean
+        # while still allowing the user to re-enable them if desired.
+        if not is_main_device and not is_smart_meter(sn):
+            registry = er.async_get(hass)
+            stale_unique_ids = (
+                [f"{sn}_{d.key}" for d in MQTT_SENSORS if d.system_only]
+                + [f"{sn}_energy_{d.key}" for d in ENERGY_SENSORS]
+            )
+            for uid in stale_unique_ids:
+                entity_id = registry.async_get_entity_id("sensor", DOMAIN, uid)
+                if entity_id:
+                    entry = registry.async_get(entity_id)
+                    if entry and not entry.disabled:
+                        registry.async_update_entity(
+                            entity_id,
+                            disabled_by=er.RegistryEntryDisabler.INTEGRATION,
+                        )
         if is_smart_meter(sn):
             # The Public API exposes only live grid power for the meter, so we
             # derive cumulative import/export kWh sensors for the Energy
@@ -143,3 +177,27 @@ class StreamEnergySensor(
         if self.coordinator.data is None:
             return None
         return self.coordinator.data.get(self.entity_description.key)
+
+
+class StreamRoleSensor(SensorEntity):
+    """Static diagnostic sensor reporting whether this device is the cascade master.
+
+    Reads "Primary" for the main_sn device and "Secondary" for all others.
+    The value never changes at runtime — it reflects the topology resolved at
+    startup via the /device/system/main/sn API.
+    """
+
+    _attr_has_entity_name = True
+    _attr_name = "Device Role"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:identifier"
+    _attr_should_poll = False
+
+    def __init__(self, sn: str, is_main: bool, device_info: DeviceInfo) -> None:
+        self._attr_unique_id = f"{sn}_device_role"
+        self._attr_device_info = device_info
+        self._attr_native_value = "Primary" if is_main else "Secondary"
+
+    @property
+    def available(self) -> bool:
+        return True

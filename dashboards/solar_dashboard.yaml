@@ -13,8 +13,13 @@
 # IMPORTANT — REPLACE THE PLACEHOLDER ENTITY IDs
 #   This template uses placeholder entity prefixes. Find-and-replace them with
 #   your own before use (Developer Tools → States shows your real entity IDs):
-#     stream_ultra_x_XXXX      -> your Stream inverter, e.g. stream_ultra_x_1234
-#     ecoflow_smart_meter_YYYY -> your Smart Meter,   e.g. ecoflow_bk21ab2c3d4e
+#     stream_ultra_x_XXXX      -> your primary (main) Stream inverter
+#     stream_ultra_x_XXXX2     -> your secondary Stream battery (2nd unit)
+#     ecoflow_smart_meter_YYYY -> your Smart Meter
+#
+#   Example: if your devices show up as stream_ultra_x_0253 and
+#   stream_ultra_x_0158 in Developer Tools, replace XXXX with 0253
+#   and XXXX2 with 0158.
 #
 # NOTE ON GRID SIGN
 #   The meter import/export energy sign is not yet verified. If the flow arrows
@@ -33,40 +38,28 @@ views:
     type: sections
     max_columns: 3
     sections:
-      # ----- Live power flow -----
+      # The power flow card spans 2 columns (out of max_columns: 3) so it
+      # takes up 2/3 of the overview width, with stats in the remaining column.
       - type: grid
+        column_span: 2
         cards:
-          - type: custom:power-flow-card-plus
+          - type: custom:ecoflow-power-flow-card
             title: Live Power Flow
-            clickable_entities: true
-            display_zero_lines:
-              mode: show
-            use_new_flow_rate_model: true
+            solar: sensor.stream_ultra_x_XXXX_solar_power
+            battery: sensor.stream_ultra_x_XXXX_battery_power
+            # battery_level = cmsBattSoc = system-aggregate SoC (both batteries)
+            battery_soc: sensor.stream_ultra_x_XXXX_battery_level
+            grid: sensor.ecoflow_smart_meter_YYYY_grid_power
+            home: sensor.stream_ultra_x_XXXX_load_power
+            invert_battery: true
             watt_threshold: 20
-            entities:
-              grid:
-                entity: sensor.ecoflow_smart_meter_YYYY_grid_power
-                name: Grid
-                # If arrows point the wrong way, add: invert_state: true
-              solar:
-                entity: sensor.stream_ultra_x_XXXX_solar_power
-                name: Solar
-                icon: mdi:solar-power
-              battery:
-                entity: sensor.stream_ultra_x_XXXX_battery_power
-                state_of_charge: sensor.stream_ultra_x_XXXX_battery_level_precise
-                name: Battery
-                # This device reports discharge as NEGATIVE watts, but the card
-                # expects positive = discharging. Invert so the battery→home
-                # flow animates correctly.
-                invert_state: true
-              home:
-                entity: sensor.stream_ultra_x_XXXX_load_power
-                name: Home
-                icon: mdi:home-lightning-bolt
+            grid_options:
+              columns: full
+              rows: auto
 
-      # ----- Key stats (Mushroom tiles) -----
+      # Right now + Today merged into one column alongside the power flow card
       - type: grid
+        column_span: 1
         cards:
           - type: heading
             heading: Right now
@@ -92,26 +85,32 @@ views:
             icon: mdi:home-battery
             color: green
           - type: custom:mushroom-template-card
-            primary: Battery
-            secondary: "{{ states('sensor.stream_ultra_x_XXXX_battery_level_precise') }} %"
+            primary: Battery (system)
+            secondary: "{{ states('sensor.stream_ultra_x_XXXX_battery_level') | float(0) | round(0) }} %"
             icon: >-
-              {% set s = states('sensor.stream_ultra_x_XXXX_battery_level_precise') | float(0) %}
+              {% set s = states('sensor.stream_ultra_x_XXXX_battery_level') | float(0) %}
               {% if s >= 90 %} mdi:battery
               {% elif s >= 60 %} mdi:battery-70
               {% elif s >= 30 %} mdi:battery-40
               {% elif s >= 10 %} mdi:battery-20
               {% else %} mdi:battery-alert {% endif %}
             icon_color: >-
-              {% set s = states('sensor.stream_ultra_x_XXXX_battery_level_precise') | float(0) %}
+              {% set s = states('sensor.stream_ultra_x_XXXX_battery_level') | float(0) %}
               {% if s >= 50 %} green {% elif s >= 20 %} orange {% else %} red {% endif %}
             badge_icon: >-
               {% set p = states('sensor.stream_ultra_x_XXXX_battery_power') | float(0) %}
               {% if p > 20 %} mdi:arrow-down-bold {% elif p < -20 %} mdi:arrow-up-bold {% endif %}
+            entity: sensor.stream_ultra_x_XXXX_battery_level
+          - type: tile
             entity: sensor.stream_ultra_x_XXXX_battery_level_precise
-
-      # ----- Today's totals -----
-      - type: grid
-        cards:
+            name: Battery 1 SoC (primary)
+            icon: mdi:battery
+            color: green
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX2_battery_level_precise
+            name: Battery 2 SoC (secondary)
+            icon: mdi:battery
+            color: teal
           - type: heading
             heading: Today
             heading_style: title
@@ -207,7 +206,7 @@ views:
       - type: grid
         cards:
           - type: heading
-            heading: Per-string (PV)
+            heading: "Battery 1 PV strings (XXXX)"
             heading_style: title
           - type: horizontal-stack
             cards:
@@ -254,6 +253,58 @@ views:
                   yellow: 50
                   red: 0
 
+      # PV strings for the secondary battery — entities only appear in HA once
+      # solar panels are physically connected to that unit.
+      - type: grid
+        cards:
+          - type: heading
+            heading: "Battery 2 PV strings (XXXX2)"
+            heading_style: title
+          - type: horizontal-stack
+            cards:
+              - type: gauge
+                entity: sensor.stream_ultra_x_XXXX2_solar_power_pv1
+                name: PV1
+                needle: true
+                min: 0
+                max: 600
+                severity:
+                  green: 200
+                  yellow: 50
+                  red: 0
+              - type: gauge
+                entity: sensor.stream_ultra_x_XXXX2_solar_power_pv2
+                name: PV2
+                needle: true
+                min: 0
+                max: 600
+                severity:
+                  green: 200
+                  yellow: 50
+                  red: 0
+          - type: horizontal-stack
+            cards:
+              - type: gauge
+                entity: sensor.stream_ultra_x_XXXX2_solar_power_pv3
+                name: PV3
+                needle: true
+                min: 0
+                max: 600
+                severity:
+                  green: 200
+                  yellow: 50
+                  red: 0
+              - type: gauge
+                entity: sensor.stream_ultra_x_XXXX2_solar_power_pv4
+                name: PV4
+                needle: true
+                min: 0
+                max: 600
+                severity:
+                  green: 200
+                  yellow: 50
+                  red: 0
+
   # ===========================================================================
   # VIEW 3 — Battery
   # ===========================================================================
@@ -266,11 +317,12 @@ views:
       - type: grid
         cards:
           - type: heading
-            heading: Battery State
+            heading: System Battery State
             heading_style: title
+          # cmsBattSoc = cascade-system aggregate SoC (both batteries combined)
           - type: gauge
-            entity: sensor.stream_ultra_x_XXXX_battery_level_precise
-            name: State of Charge
+            entity: sensor.stream_ultra_x_XXXX_battery_level
+            name: System State of Charge
             min: 0
             max: 100
             needle: true
@@ -281,7 +333,7 @@ views:
           - type: custom:apexcharts-card
             header:
               show: true
-              title: State of Charge (today)
+              title: System State of Charge (today)
             graph_span: 24h
             span:
               start: day
@@ -292,8 +344,8 @@ views:
                 min: 0
                 max: 100
             series:
-              - entity: sensor.stream_ultra_x_XXXX_battery_level_precise
-                name: SoC
+              - entity: sensor.stream_ultra_x_XXXX_battery_level
+                name: System SoC
                 type: area
                 color: "#4caf50"
                 group_by:
@@ -303,8 +355,56 @@ views:
       - type: grid
         cards:
           - type: heading
-            heading: Battery Health & Info
+            heading: Per-battery SoC
             heading_style: title
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX_battery_level_precise
+            name: Battery 1 (primary)
+            icon: mdi:battery
+            color: green
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX2_battery_level_precise
+            name: Battery 2 (secondary)
+            icon: mdi:battery
+            color: teal
+          - type: custom:apexcharts-card
+            header:
+              show: true
+              title: Per-battery SoC (today)
+            graph_span: 24h
+            span:
+              start: day
+            apex_config:
+              chart:
+                height: 220
+              yaxis:
+                min: 0
+                max: 100
+            series:
+              - entity: sensor.stream_ultra_x_XXXX_battery_level_precise
+                name: Battery 1
+                type: line
+                color: "#4caf50"
+                group_by:
+                  func: avg
+                  duration: 5min
+              - entity: sensor.stream_ultra_x_XXXX2_battery_level_precise
+                name: Battery 2
+                type: line
+                color: "#009688"
+                group_by:
+                  func: avg
+                  duration: 5min
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Battery 1 Health & Info
+            heading_style: title
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX_device_role
+            name: Role
+            icon: mdi:identifier
           - type: tile
             entity: sensor.stream_ultra_x_XXXX_battery_health
             name: Health
@@ -324,13 +424,45 @@ views:
             icon: mdi:thermometer
             color: orange
           - type: tile
-            entity: sensor.stream_ultra_x_XXXX_charge_remaining_time_2
+            entity: sensor.stream_ultra_x_XXXX_charge_remaining_time
             name: Charge Time Left
             icon: mdi:battery-clock
           - type: tile
-            entity: sensor.stream_ultra_x_XXXX_discharge_remaining_time_2
+            entity: sensor.stream_ultra_x_XXXX_discharge_remaining_time
             name: Discharge Time Left
             icon: mdi:battery-clock-outline
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Battery 2 Health & Info
+            heading_style: title
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX2_device_role
+            name: Role
+            icon: mdi:identifier
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX2_battery_cycles
+            name: Cycles
+            icon: mdi:battery-sync
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX2_total_charge_energy
+            name: Total Charged
+            icon: mdi:battery-plus-variant
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX2_total_discharge_energy
+            name: Total Discharged
+            icon: mdi:battery-minus-variant
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX2_temperature
+            name: Battery Temp
+            icon: mdi:thermometer
+            color: orange
+          - type: tile
+            entity: sensor.stream_ultra_x_XXXX2_grid_connection_power
+            name: DC Bus Power
+            icon: mdi:lightning-bolt
+            color: blue
 
   # ===========================================================================
   # VIEW 4 — Grid & System
