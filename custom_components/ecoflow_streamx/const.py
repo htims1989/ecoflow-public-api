@@ -43,6 +43,14 @@ MQTT_OUTAGE_SEC: Final = 300
 # sensors can transition to "unavailable" during a real outage.
 AVAILABILITY_CHECK_SEC: Final = 60
 
+# Minimum gap between MQTT credential refresh attempts. The broker refuses
+# the CONNACK once the certificatePassword from /certification goes stale;
+# paho then retries forever with the same (now-permanently-bad) password
+# since it never re-fetches credentials on its own. This cooldown stops a
+# persistently-refused connection from hammering /certification on every
+# retry (paho's own backoff can be as low as 2s).
+MQTT_CRED_REFRESH_COOLDOWN_SEC: Final = 60
+
 # Historical energy aggregate codes (verified live for Stream Ultra X, BK621).
 # Each maps to POST /device/quota/data with {code, beginTime, endTime}.
 ENERGY_CODE_SOLAR: Final = (

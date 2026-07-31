@@ -3,8 +3,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Copilot / AI
-.github/copilot-instructions.md
+# AI
+CLAUDE.md
 
 # Editors / OS
 .vscode/

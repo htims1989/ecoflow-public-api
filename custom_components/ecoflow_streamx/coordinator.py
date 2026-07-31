@@ -23,6 +23,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 
 from .api import (
+    EcoflowApiError,
     EcoflowPublicApi,
     EcoflowUnsupportedError,
     MqttCredentials,
@@ -35,6 +36,7 @@ from .const import (
     ENERGY_CODE_SOLAR,
     ENERGY_POLL_INTERVAL_SEC,
     ENERGY_REQUEST_STAGGER_SEC,
+    MQTT_CRED_REFRESH_COOLDOWN_SEC,
     MQTT_OUTAGE_SEC,
     MQTT_STALE_SEC,
 )
@@ -74,6 +76,9 @@ class StreamMqttCoordinator:
         self._listeners: list[Any] = []
         self._last_message_ts: float = 0.0
         self._cancel_timer: Any = None
+        # Whether the "gone stale" transition has already been logged, so the
+        # availability tick (every AVAILABILITY_CHECK_SEC) doesn't repeat it.
+        self._stale_logged = False
 
     @property
     def online(self) -> bool:
@@ -126,6 +131,13 @@ class StreamMqttCoordinator:
 
     @callback
     def _async_availability_tick(self, _now: Any) -> None:
+        if self.stale and not self._stale_logged:
+            self._stale_logged = True
+            _LOGGER.warning(
+                "%s: no MQTT telemetry for %.0fs; sensors going unavailable",
+                self.sn,
+                time.time() - self._last_message_ts,
+            )
         self._notify_listeners()
 
     def ingest(self, params: dict[str, Any]) -> None:
@@ -134,6 +146,9 @@ class StreamMqttCoordinator:
         Runs in the MQTT network thread. The merge and timestamp update happen
         here; listener notification is marshalled onto the HA event loop.
         """
+        if self._stale_logged:
+            self._stale_logged = False
+            _LOGGER.info("%s: MQTT telemetry resumed after outage", self.sn)
         self.data.update(params)
         self._last_message_ts = time.time()
         self.hass.loop.call_soon_threadsafe(self._notify_listeners)
@@ -155,8 +170,11 @@ class StreamMqttHub:
     on multi-device systems.
     """
 
-    def __init__(self, hass: HomeAssistant, creds: MqttCredentials, group: str) -> None:
+    def __init__(
+        self, hass: HomeAssistant, api: EcoflowPublicApi, creds: MqttCredentials, group: str
+    ) -> None:
         self.hass = hass
+        self._api = api
         self._creds = creds
         self._client: mqtt.Client | None = None
         # topic -> coordinator that should receive its payloads.
@@ -170,6 +188,10 @@ class StreamMqttHub:
         # Whether an active disconnect has already been logged at WARNING, so a
         # flapping broker does not spam the log on every retry.
         self._disconnect_logged = False
+        # Guards against overlapping /certification calls and throttles how
+        # often a persistently-refused connection re-fetches credentials.
+        self._refresh_task: Any = None
+        self._last_cred_refresh: float = 0.0
 
     def register(self, coordinator: StreamMqttCoordinator) -> None:
         """Route a device's quota topic to its coordinator.
@@ -211,6 +233,26 @@ class StreamMqttHub:
     # --- paho callbacks (run in the MQTT network thread) ---
 
     def _on_connect(self, client: mqtt.Client, _userdata, _flags, reason_code, _props=None) -> None:
+        # paho calls on_connect for every CONNACK, including refusals (e.g.
+        # bad/expired credentials). The broker closes the socket right after a
+        # refusal, so treating this as a live connection would reset the
+        # disconnect-log suppression and attempt to subscribe on a connection
+        # that's already dead, masking the real reason in the logs.
+        if reason_code.is_failure:
+            _LOGGER.warning(
+                "MQTT connection refused (%s); refreshing credentials from"
+                " /certification",
+                reason_code,
+            )
+            # paho retries forever with the *same* username/password it was
+            # given at connect() time — it never re-fetches credentials on its
+            # own. If /certification issues a short-lived password, every
+            # retry after expiry fails identically and only a full integration
+            # reload (which re-runs certification()) used to recover. Refresh
+            # here instead so the existing connection self-heals.
+            self.hass.loop.call_soon_threadsafe(self._schedule_cred_refresh)
+            return
+
         self._disconnect_logged = False
         # (Re)subscribe to every device topic on each successful connect so a
         # reconnect restores all subscriptions.
@@ -227,6 +269,48 @@ class StreamMqttHub:
             return
         self._disconnect_logged = True
         _LOGGER.warning("MQTT disconnected (rc=%s); paho will auto-reconnect", reason_code)
+
+    @callback
+    def _schedule_cred_refresh(self) -> None:
+        """Kick off a throttled, de-duplicated credential refresh.
+
+        Runs on the HA event loop (marshalled from the MQTT thread via
+        call_soon_threadsafe). Skips if a refresh is already in flight or one
+        completed too recently — a broker that keeps refusing for a
+        non-credential reason would otherwise hammer /certification on every
+        paho retry (as fast as every 2s).
+        """
+        if self._refresh_task is not None and not self._refresh_task.done():
+            _LOGGER.debug("Credential refresh already in progress; skipping")
+            return
+        elapsed = time.time() - self._last_cred_refresh
+        if elapsed < MQTT_CRED_REFRESH_COOLDOWN_SEC:
+            _LOGGER.debug(
+                "Credential refresh requested %.0fs ago; waiting out cooldown",
+                elapsed,
+            )
+            return
+        self._last_cred_refresh = time.time()
+        self._refresh_task = self.hass.async_create_task(
+            self._async_refresh_credentials(), name="ecoflow_streamx_mqtt_cred_refresh"
+        )
+
+    async def _async_refresh_credentials(self) -> None:
+        try:
+            creds = await self._api.certification()
+        except EcoflowApiError as err:
+            _LOGGER.warning("MQTT credential refresh failed: %s", err)
+            return
+
+        changed = creds.password != self._creds.password
+        self._creds = creds
+        if self._client is not None:
+            self._client.username_pw_set(creds.account, creds.password)
+            _LOGGER.info(
+                "MQTT credentials refreshed (password changed: %s);"
+                " paho will use them on its next reconnect attempt",
+                changed,
+            )
 
     def _on_message(self, _client, _userdata, message: mqtt.MQTTMessage) -> None:
         coordinator = self._routes.get(message.topic)

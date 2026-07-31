@@ -66,7 +66,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # A single MQTT connection serves the whole account; all device
     # coordinators are routed through it. This avoids the connect/disconnect
     # storm that a per-device client (sharing one broker client id) causes.
-    hub = StreamMqttHub(hass, creds, group)
+    hub = StreamMqttHub(hass, api, creds, group)
 
     devices: list[dict] = []
     for device in configured_devices:

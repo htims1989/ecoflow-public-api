@@ -5,7 +5,32 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.6.0] - 2026-07-27
+## [0.7.0] - 2026-07-31
+
+### Fixed
+- **Entities no longer get stuck `unavailable` until the integration is reloaded.**
+  The single shared MQTT client (introduced in 0.6.0) fetched its broker credentials
+  once at startup and never refreshed them. If the broker later refused the
+  connection (e.g. an expired `certificatePassword` from `/certification`), paho's
+  automatic reconnect kept retrying forever with the same now-invalid credentials —
+  every retry failed identically, and only a full reload (which re-runs
+  `certification()`) recovered. `StreamMqttHub` now re-fetches credentials and
+  updates the live client on a refused CONNACK, throttled to once per 60s, so the
+  existing connection self-heals instead of requiring manual intervention. Fixes
+  [#6](https://github.com/htims1989/ecoflow-public-api/issues/6).
+- Added debug/warning logging around the MQTT connect/disconnect/refresh lifecycle
+  and around each device's stale → unavailable transition, so a future recurrence
+  is diagnosable from the log instead of only visible in the UI.
+
+### Added
+- **25 additional temperature/BMS diagnostic sensors**, confirmed live over MQTT
+  in response to [#4](https://github.com/htims1989/ecoflow-public-api/issues/4):
+  per-channel NTC arrays (cell, current sensor, ambient, heating film, MOSFET,
+  power port temperatures), their min/max scalars, NTC channel counts, and the
+  DAB/DC port temperatures. All added disabled by default (`entity_registry_enabled_default=False`)
+  since most users won't need this level of detail — enable per-entity as needed.
+
+
 
 ### Added
 - **Multi-battery (cascade) system support.** Two or more daisy-chained Stream

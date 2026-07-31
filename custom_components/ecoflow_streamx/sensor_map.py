@@ -50,6 +50,20 @@ def _centi(value: Any) -> float:
     return round(float(value) / 100.0, 2)
 
 
+def _list_join(value: Any) -> str | None:
+    """Render a per-channel NTC array (e.g. cellTemp=[26,24,24,26]) as text.
+
+    These keys carry one reading per physical sensor rather than a single
+    scalar, so they can't use device_class=TEMPERATURE (HA expects a
+    parseable float). An empty list means the channel has zero populated
+    NTCs (see the paired *NtcNum count) — report that as unknown rather
+    than an empty string.
+    """
+    if isinstance(value, list):
+        return ", ".join(str(v) for v in value) if value else None
+    return value
+
+
 MQTT_SENSORS: tuple[StreamSensorEntityDescription, ...] = (
     # --- Power flow (near real-time, enabled by default) ---
     StreamSensorEntityDescription(
@@ -289,6 +303,222 @@ MQTT_SENSORS: tuple[StreamSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # --- Additional NTC temperature channels (issue #4), disabled by default:
+    # confirmed live over MQTT but niche enough that most users don't need
+    # them enabled out of the box. Users can opt in per-entity. ---
+    StreamSensorEntityDescription(
+        key="bmsMaxMosTemp",
+        name="BMS Max MOSFET Temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    StreamSensorEntityDescription(
+        key="bmsMinMosTemp",
+        name="BMS Min MOSFET Temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    StreamSensorEntityDescription(
+        key="minMosTemp",
+        name="Min MOSFET Temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    StreamSensorEntityDescription(
+        key="maxCellTemp",
+        name="Max Cell Temperature (Raw)",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    StreamSensorEntityDescription(
+        key="minCellTemp",
+        name="Min Cell Temperature (Raw)",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    StreamSensorEntityDescription(
+        key="maxCurSensorTemp",
+        name="Max Current Sensor Temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    StreamSensorEntityDescription(
+        key="minCurSensorTemp",
+        name="Min Current Sensor Temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    StreamSensorEntityDescription(
+        key="maxEnvTemp",
+        name="Max Ambient Temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    StreamSensorEntityDescription(
+        key="minEnvTemp",
+        name="Min Ambient Temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    StreamSensorEntityDescription(
+        key="maxHeatfilmTemp",
+        name="Max Heating Film Temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    StreamSensorEntityDescription(
+        key="minHeatfilmTemp",
+        name="Min Heating Film Temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    StreamSensorEntityDescription(
+        key="dabHighTempNtc",
+        name="DAB High-Side Temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    StreamSensorEntityDescription(
+        key="dcTemp1Ntc",
+        name="DC Port 1 Temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # --- Per-channel NTC arrays (issue #4), disabled by default. One
+    # reading per physical sensor, rendered as a comma-joined string since
+    # a HA sensor state can't be a list. ---
+    StreamSensorEntityDescription(
+        key="cellTemp",
+        name="Cell Temperatures",
+        icon="mdi:thermometer-lines",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=_list_join,
+    ),
+    StreamSensorEntityDescription(
+        key="curSensorTemp",
+        name="Current Sensor Temperatures",
+        icon="mdi:thermometer-lines",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=_list_join,
+    ),
+    StreamSensorEntityDescription(
+        key="envTemp",
+        name="Ambient Temperatures",
+        icon="mdi:thermometer-lines",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=_list_join,
+    ),
+    StreamSensorEntityDescription(
+        key="heatfilmTemp",
+        name="Heating Film Temperatures",
+        icon="mdi:thermometer-lines",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=_list_join,
+    ),
+    StreamSensorEntityDescription(
+        key="mosTemp",
+        name="MOSFET Temperatures",
+        icon="mdi:thermometer-lines",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=_list_join,
+    ),
+    StreamSensorEntityDescription(
+        key="powerportTemp",
+        name="Power Port Temperatures",
+        icon="mdi:thermometer-lines",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=_list_join,
+    ),
+    # --- NTC channel counts (issue #4), disabled by default. Reports how
+    # many physical sensors populate the paired *Temp array/min/max above;
+    # 0 means that hardware channel isn't present/active on this unit. ---
+    StreamSensorEntityDescription(
+        key="cellNtcNum",
+        name="Cell Temperature Sensor Count",
+        icon="mdi:counter",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    StreamSensorEntityDescription(
+        key="curSensorNtcNum",
+        name="Current Sensor NTC Count",
+        icon="mdi:counter",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    StreamSensorEntityDescription(
+        key="envNtcNum",
+        name="Ambient Temperature Sensor Count",
+        icon="mdi:counter",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    StreamSensorEntityDescription(
+        key="heatfilmNtcNum",
+        name="Heating Film Temperature Sensor Count",
+        icon="mdi:counter",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    StreamSensorEntityDescription(
+        key="mosNtcNum",
+        name="MOSFET Temperature Sensor Count",
+        icon="mdi:counter",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    StreamSensorEntityDescription(
+        key="powerportNtcNum",
+        name="Power Port Temperature Sensor Count",
+        icon="mdi:counter",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
     ),
     # --- Cell voltages (mV -> V, diagnostic) ---
     StreamSensorEntityDescription(
