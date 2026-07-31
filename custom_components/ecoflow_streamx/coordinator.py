@@ -39,6 +39,8 @@ from .const import (
     MQTT_CRED_REFRESH_COOLDOWN_SEC,
     MQTT_OUTAGE_SEC,
     MQTT_STALE_SEC,
+    MQTT_WATCHDOG_CHECK_SEC,
+    MQTT_WATCHDOG_SEC,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -192,6 +194,13 @@ class StreamMqttHub:
         # often a persistently-refused connection re-fetches credentials.
         self._refresh_task: Any = None
         self._last_cred_refresh: float = 0.0
+        # Timestamp of the last activity of any kind on the connection
+        # (a successful connect or any inbound message, regardless of topic).
+        # The watchdog force-reconnects when this goes stale for too long, as
+        # a backstop against failures paho itself never notices (see
+        # _async_watchdog_tick).
+        self._last_activity_ts: float = time.time()
+        self._cancel_watchdog: Any = None
 
     def register(self, coordinator: StreamMqttCoordinator) -> None:
         """Route a device's quota topic to its coordinator.
@@ -222,9 +231,19 @@ class StreamMqttHub:
             client.connect, self._creds.host, self._creds.port, 60
         )
         client.loop_start()
+        self._last_activity_ts = time.time()
+
+        self._cancel_watchdog = async_track_time_interval(
+            self.hass,
+            self._async_watchdog_tick,
+            timedelta(seconds=MQTT_WATCHDOG_CHECK_SEC),
+        )
 
     async def async_stop(self) -> None:
         """Disconnect and tear down the MQTT client."""
+        if self._cancel_watchdog is not None:
+            self._cancel_watchdog()
+            self._cancel_watchdog = None
         if self._client is not None:
             await self.hass.async_add_executor_job(self._client.loop_stop)
             await self.hass.async_add_executor_job(self._client.disconnect)
@@ -233,6 +252,21 @@ class StreamMqttHub:
     # --- paho callbacks (run in the MQTT network thread) ---
 
     def _on_connect(self, client: mqtt.Client, _userdata, _flags, reason_code, _props=None) -> None:
+        # Every paho callback runs in the background network thread, and paho
+        # re-raises callback exceptions by default (suppress_exceptions is
+        # False). An uncaught exception here would propagate out of
+        # loop_forever() and silently kill that thread — the `finally` in
+        # paho's _thread_main clears self._thread but nothing else notices,
+        # so the client goes permanently quiet with no error logged anywhere.
+        # The watchdog (_async_watchdog_tick) is the backstop for that; this
+        # try/except is the prevention.
+        try:
+            self._on_connect_impl(client, reason_code)
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("Unhandled error in MQTT on_connect callback")
+
+    def _on_connect_impl(self, client: mqtt.Client, reason_code) -> None:
+        self._last_activity_ts = time.time()
         # paho calls on_connect for every CONNACK, including refusals (e.g.
         # bad/expired credentials). The broker closes the socket right after a
         # refusal, so treating this as a live connection would reset the
@@ -261,6 +295,12 @@ class StreamMqttHub:
             client.subscribe(topic, qos=0)
 
     def _on_disconnect(self, _client, _userdata, _flags, reason_code, _props=None) -> None:
+        try:
+            self._on_disconnect_impl(reason_code)
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("Unhandled error in MQTT on_disconnect callback")
+
+    def _on_disconnect_impl(self, reason_code) -> None:
         # Log the first drop at WARNING, then stay quiet until we reconnect, so
         # a persistently unreachable broker cannot flood the log (paho keeps
         # retrying in the background with the configured backoff).
@@ -313,6 +353,16 @@ class StreamMqttHub:
             )
 
     def _on_message(self, _client, _userdata, message: mqtt.MQTTMessage) -> None:
+        try:
+            self._on_message_impl(message)
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("Unhandled error in MQTT on_message callback")
+
+    def _on_message_impl(self, message: mqtt.MQTTMessage) -> None:
+        # Any inbound message, even on a topic we don't route, proves the
+        # connection and network thread are alive — feed the watchdog before
+        # the (much more common) early-return below.
+        self._last_activity_ts = time.time()
         coordinator = self._routes.get(message.topic)
         if coordinator is None:
             return
@@ -325,6 +375,50 @@ class StreamMqttHub:
         if not isinstance(params, dict):
             return
         coordinator.ingest(params)
+
+    # --- watchdog (runs on the HA event loop) ---
+
+    async def _async_watchdog_tick(self, _now: Any) -> None:
+        """Force a full reconnect if the connection has gone silent too long.
+
+        paho's own reconnect machinery only engages when paho itself believes
+        it is disconnected. A background network thread that dies from an
+        uncaught exception, or a TCP session that goes half-open without a
+        clean FIN/RST, never trips that path — the client sits there
+        indefinitely, connected as far as paho knows, receiving nothing. This
+        is a root-cause-agnostic backstop: prolonged silence forces a full
+        stop/reconnect/restart regardless of why.
+        """
+        if self._client is None:
+            return
+        elapsed = time.time() - self._last_activity_ts
+        if elapsed < MQTT_WATCHDOG_SEC:
+            return
+        _LOGGER.warning(
+            "No MQTT activity for %.0fs; forcing a full reconnect", elapsed
+        )
+        # Reset immediately so a slow/failed reconnect attempt doesn't cause
+        # the next tick (MQTT_WATCHDOG_CHECK_SEC later) to pile on another one.
+        self._last_activity_ts = time.time()
+        await self._async_force_reconnect()
+
+    async def _async_force_reconnect(self) -> None:
+        client = self._client
+        if client is None:
+            return
+        try:
+            # Stops (and joins) the background thread if it's still alive; a
+            # no-op if it already died on its own, per paho's own bookkeeping.
+            await self.hass.async_add_executor_job(client.loop_stop)
+            # reconnect() closes any stale socket and opens a fresh one using
+            # the credentials already set on the client (possibly refreshed by
+            # _async_refresh_credentials since the original connect()).
+            await self.hass.async_add_executor_job(client.reconnect)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("Watchdog reconnect attempt failed: %s", err)
+            return
+        client.loop_start()
+        _LOGGER.info("MQTT watchdog reconnect issued")
 
 
 class StreamEnergyCoordinator(DataUpdateCoordinator[dict[str, float]]):

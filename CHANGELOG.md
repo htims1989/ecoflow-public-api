@@ -5,6 +5,27 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-07-31
+
+### Fixed
+- **Entities could still get stuck `unavailable` indefinitely even after 0.7.0**,
+  with no error logged anywhere. Root cause: paho re-raises exceptions from its
+  `on_connect`/`on_disconnect`/`on_message` callbacks by default, and an uncaught
+  exception in one of those silently kills paho's background network thread — the
+  thread just vanishes, no error is logged, and since paho itself never registers a
+  disconnect, its own reconnect logic never engages. Because 0.6.0 moved to a single
+  shared thread for the whole account, this took out every device at once with no
+  trace in the log, matching exactly what was reported. Fixed two ways:
+  - All three callbacks are now wrapped so nothing can silently kill the thread; any
+    future callback bug now logs a full traceback (`Unhandled error in MQTT
+    on_connect/on_disconnect/on_message callback`) instead of failing invisibly.
+  - A watchdog now force-reconnects (`loop_stop` → `reconnect` → `loop_start`) after
+    240s of total silence on the connection, regardless of cause — this also covers
+    a TCP session going half-open without a clean FIN/RST, which paho's own
+    keepalive ping/pong doesn't reliably catch. The threshold is kept below the
+    300s "unavailable" cutoff so a stall gets a chance to self-heal before sensors
+    are affected. Confirmed fixed live against the account that reported it.
+
 ## [0.7.0] - 2026-07-31
 
 ### Fixed
@@ -30,7 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   DAB/DC port temperatures. All added disabled by default (`entity_registry_enabled_default=False`)
   since most users won't need this level of detail — enable per-entity as needed.
 
-
+## [0.6.0] - 2026-07-27
 
 ### Added
 - **Multi-battery (cascade) system support.** Two or more daisy-chained Stream

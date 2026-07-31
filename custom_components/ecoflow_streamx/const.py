@@ -51,6 +51,19 @@ AVAILABILITY_CHECK_SEC: Final = 60
 # retry (paho's own backoff can be as low as 2s).
 MQTT_CRED_REFRESH_COOLDOWN_SEC: Final = 60
 
+# How often the hub checks for total MQTT silence (no message on ANY routed
+# topic), and how long that silence must persist before it force-reconnects.
+# paho's own reconnect logic only runs if paho itself believes it is
+# disconnected; a background network thread that dies silently (an uncaught
+# exception in a callback, or a TCP session that goes half-open without a
+# clean FIN/RST) never trips that path and never recovers on its own. This
+# watchdog is a root-cause-agnostic backstop: any prolonged silence forces a
+# full stop/reconnect/restart of the client, whatever caused it. The
+# threshold is kept below MQTT_OUTAGE_SEC so a recoverable stall gets a
+# chance to heal before sensors actually go unavailable.
+MQTT_WATCHDOG_CHECK_SEC: Final = 60
+MQTT_WATCHDOG_SEC: Final = 240
+
 # Historical energy aggregate codes (verified live for Stream Ultra X, BK621).
 # Each maps to POST /device/quota/data with {code, beginTime, endTime}.
 ENERGY_CODE_SOLAR: Final = (
