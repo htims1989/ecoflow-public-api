@@ -5,6 +5,48 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.2] - 2026-08-01
+
+### Fixed
+- **Energy coordinator crashed on EcoFlow's `"-"` sentinel value.** The energy
+  aggregate API returns the string `"-"` instead of a number for `indexValue`
+  when a period has no recorded data yet (observed right after local
+  midnight, before any grid activity is logged for the new day) —
+  `float("-")` raised `ValueError` and crashed that poll. Now treated as 0 Wh
+  instead of failing the whole coordinator update.
+- **Watchdog margin was too tight.** 240s threshold + 60s check interval left
+  zero margin below the 300s "unavailable" cutoff (worst-case detection lag
+  is a full check interval), and was observed tripping it once live. Lowered
+  to 180s, leaving a full minute of margin.
+
+### Added
+- **"MQTT Status" diagnostic sensor**, one per device: reports `healthy` /
+  `degraded` / `unavailable` (naming the gap the coordinator already computed
+  between still-available-with-aging-data and actually-gone-unavailable, now
+  visible instead of only implicit in entity availability), plus
+  `last_message_seconds_ago`, `mqtt_connected`, and `reconnect_attempts`
+  attributes. Always available, even during an outage, since surfacing that
+  state is the point.
+- Also mentioned in the README: pointed users wanting broader device support
+  (PowerOcean, Delta, Smart Plug) or more sensors per device at
+  [shuette42/ecoflow-energy-ha](https://github.com/shuette42/ecoflow-energy-ha).
+
+### Changed
+- **Escalating log severity for MQTT recovery events.** A first, isolated
+  disconnect or watchdog-triggered reconnect now logs at INFO — that's the
+  expected, self-healing case the watchdog exists for. It only escalates to
+  WARNING once a `reconnect_attempts` counter shows attempts piling up without
+  data actually resuming, so healthy operation (which per live testing
+  includes routine reconnects every 1-4 hours) no longer reads as repeated
+  alarming WARNINGs in the log.
+- **`asyncio.Lock` now guards the shared paho client** during watchdog
+  force-reconnects and credential refreshes. Both run as independent
+  event-loop tasks and could previously interleave on the same client object
+  (e.g. a credential refresh writing new auth onto a client the watchdog is
+  simultaneously tearing down) — the watchdog now skips and retries next tick
+  if a refresh is in flight; the (much shorter) credential refresh waits its
+  turn.
+
 ## [0.7.1] - 2026-07-31
 
 ### Fixed

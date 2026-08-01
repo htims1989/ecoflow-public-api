@@ -58,11 +58,15 @@ MQTT_CRED_REFRESH_COOLDOWN_SEC: Final = 60
 # exception in a callback, or a TCP session that goes half-open without a
 # clean FIN/RST) never trips that path and never recovers on its own. This
 # watchdog is a root-cause-agnostic backstop: any prolonged silence forces a
-# full stop/reconnect/restart of the client, whatever caused it. The
-# threshold is kept below MQTT_OUTAGE_SEC so a recoverable stall gets a
-# chance to heal before sensors actually go unavailable.
+# full stop/reconnect/restart of the client, whatever caused it. In
+# practice this silence recurs every 1-4 hours (cause still unconfirmed,
+# likely broker-side); the watchdog reliably recovers it, but the threshold
+# needs real headroom below MQTT_OUTAGE_SEC (300s) — since detection can lag
+# by up to one check interval, 240s+60s leaves zero margin and was observed
+# to trip the 300s "unavailable" cutoff once. 180s+60s leaves a full minute
+# of margin.
 MQTT_WATCHDOG_CHECK_SEC: Final = 60
-MQTT_WATCHDOG_SEC: Final = 240
+MQTT_WATCHDOG_SEC: Final = 180
 
 # Historical energy aggregate codes (verified live for Stream Ultra X, BK621).
 # Each maps to POST /device/quota/data with {code, beginTime, endTime}.

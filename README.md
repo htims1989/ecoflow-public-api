@@ -1,5 +1,13 @@
 # EcoFlow Stream (Public API) — Home Assistant Integration
 
+> **Looking for broader device support?** This integration is intentionally narrow —
+> Stream Ultra X, Stream Max, and Smart Meter only, via the official public API. If you
+> have other EcoFlow hardware (PowerOcean, Delta 2 Max/3 Max Plus, Smart Plug) or want
+> more sensors per device, check out
+> [shuette42/ecoflow-energy-ha](https://github.com/shuette42/ecoflow-energy-ha) — a more
+> comprehensive integration covering a wider device range, with an enhanced real-time
+> mode and 200+ sensors per device.
+
 A lightweight, independent Home Assistant integration for **EcoFlow Stream** inverter
 systems and the EcoFlow **Smart Meter**, built on EcoFlow's
 **official public developer API** (IoT Open) — HMAC-signed HTTP plus the EcoFlow MQTT

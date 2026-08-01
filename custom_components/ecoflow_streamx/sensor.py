@@ -14,7 +14,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, device_model, is_smart_meter
-from .coordinator import StreamEnergyCoordinator, StreamMqttCoordinator
+from .coordinator import StreamEnergyCoordinator, StreamMqttCoordinator, StreamMqttHub
 from .energy_map import ENERGY_SENSORS, StreamEnergySensorEntityDescription
 from .meter_energy import build_meter_energy_sensors
 from .sensor_map import (
@@ -32,6 +32,7 @@ async def async_setup_entry(
     """Set up EcoFlow Stream sensors from a config entry."""
     runtime = hass.data[DOMAIN][entry.entry_id]
     main_sn = runtime.get("main_sn")
+    hub: StreamMqttHub = runtime["hub"]
 
     entities: list[SensorEntity] = []
     for device in runtime["devices"]:
@@ -45,6 +46,11 @@ async def async_setup_entry(
         # Role sensor — static diagnostic showing Primary / Secondary.
         if not is_smart_meter(sn):
             entities.append(StreamRoleSensor(sn, is_main_device, device_info))
+
+        # MQTT health — every device rides the same shared connection, so
+        # each gets its own freshness reading plus the connection-wide
+        # reconnect count.
+        entities.append(StreamMqttStatusSensor(mqtt_coord, hub, sn, device_info))
 
         mqtt_map = METER_SENSORS if is_smart_meter(sn) else MQTT_SENSORS
         for description in mqtt_map:
@@ -201,3 +207,58 @@ class StreamRoleSensor(SensorEntity):
     @property
     def available(self) -> bool:
         return True
+
+
+class StreamMqttStatusSensor(SensorEntity):
+    """Diagnostic sensor surfacing this device's MQTT health.
+
+    Two things that were previously only visible in the log, if at all:
+    - This device's own telemetry freshness as "healthy" / "degraded" /
+      "unavailable", naming the gap the coordinator already computes between
+      still-available-with-slightly-old-data and actually-gone-unavailable.
+    - The shared connection's reconnect_attempts, since every device on the
+      account rides the same StreamMqttHub connection and is equally affected
+      if it drops.
+
+    Always available, even during an outage — that visibility is the point.
+    """
+
+    _attr_has_entity_name = True
+    _attr_name = "MQTT Status"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:wifi"
+    _attr_should_poll = False
+
+    def __init__(
+        self,
+        coordinator: StreamMqttCoordinator,
+        hub: StreamMqttHub,
+        sn: str,
+        device_info: DeviceInfo,
+    ) -> None:
+        self._coordinator = coordinator
+        self._hub = hub
+        self._attr_unique_id = f"{sn}_mqtt_status"
+        self._attr_device_info = device_info
+
+    async def async_added_to_hass(self) -> None:
+        self.async_on_remove(
+            self._coordinator.async_add_listener(self._handle_update)
+        )
+        self._handle_update()
+
+    @property
+    def available(self) -> bool:
+        return True
+
+    @callback
+    def _handle_update(self) -> None:
+        self._attr_native_value = self._coordinator.status
+        age = self._coordinator.last_message_age
+        self._attr_extra_state_attributes = {
+            "last_message_seconds_ago": round(age) if age is not None else None,
+            "mqtt_connected": self._hub.is_connected,
+            "reconnect_attempts": self._hub.reconnect_attempts,
+        }
+        if self.hass is not None:
+            self.async_write_ha_state()
